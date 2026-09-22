@@ -7,6 +7,7 @@
 #include "usart.h"
 #include "ADC.h"
 #include <util/delay.h>
+#include <stdlib.h>
 
 static uint8_t center_x = 0;
 static uint8_t center_y = 0;
@@ -93,7 +94,7 @@ void joystick_calibrate(void)
 	center_y = adc_read_ch(JOY_Y);
 	calibrated = 1;
 
-	printf("Calibration done: center_x=%d center_y=%d\n", center_x, center_y);
+	//printf("Calibration done: center_x=%d center_y=%d\n", center_x, center_y);
 }
 
 
@@ -124,12 +125,47 @@ joy_pos_t joy_slider_read(void)
 	pos.y= to_percent(raw_y, 67, 242);
 	pos.slid_x = to_percent(raw_slid_x , 69 , 241);
 	pos.slid_y = to_percent(raw_slid_y , 69 , 241);
-	printf(" || per_x %2d|| per_y %2d|| per_pad_x %d || per_pad_y %d \r\n", pos.x, pos.y, pos.slid_x, pos.slid_y );
-	_delay_ms(500);
+	//printf("  per_x %2d | per_y %2d | per_pad_x %2d | per_pad_y %2d \r\n", pos.x, pos.y, pos.slid_x, pos.slid_y );
+	//_delay_ms(300);
 	return pos;
 }
 
 
+
+joystick_dir_t joy_dir (void)
+{
+	joy_pos_t pos = joy_slider_read();
+	int8_t dev_x = pos.x - joy_pad_centered;
+	int8_t dev_y =  pos.y - joy_pad_centered;
+	//int8_t dev_pad_x = pos.slid_x - joy_pad_centered;
+	//int8_t dev_pad_y = pos.slid_y - joy_pad_centered;
+	
+	if(abs(dev_x) > abs(dev_y))
+	{
+		if (dev_x > joy_pad_threshold)
+		{
+			return JOY_RIGHT;
+		}
+		if (dev_x < -joy_pad_threshold)
+		{
+			return JOY_LEFT;
+		}
+	}
+		else
+		{
+			if (dev_y > joy_pad_threshold)
+			{
+				return JOY_UP;
+			}
+			if (dev_y < -joy_pad_threshold)
+			{
+				return JOY_DOWN;
+			}
+		}
+		
+	
+	return JOY_NEUTRAL;
+}
 
 
 

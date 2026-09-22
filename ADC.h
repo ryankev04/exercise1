@@ -16,6 +16,8 @@
 #define PAD_Y 1
 #define JOY_Y 2
 #define JOY_X 3
+#define joy_pad_centered 52
+#define joy_pad_threshold 5 // how far it moves from the center 
 
 
 
@@ -40,6 +42,7 @@ void joystick_calibrate(void);
 void adc_convert_all(void);
 
 joy_pos_t joy_slider_read(void);
+joystick_dir_t joy_dir (void);
 extern uint8_t adc_read_ch(uint8_t ch);
 
 #endif //ADC_H_

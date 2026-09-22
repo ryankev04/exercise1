@@ -148,7 +148,22 @@
     <Compile Include="Decoder.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="fonts.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="main.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="oled.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="oled.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Spi.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Spi.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Sram.c">

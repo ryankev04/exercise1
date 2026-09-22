@@ -20,6 +20,8 @@ void decoder_test(void)
 	volatile uint8_t *sram_addr2 = (uint8_t *) 0x1800;   // A11=1, A10=0
 	volatile uint8_t *sram_addr3 = (uint8_t *) 0x1C00;   // A11=1, A10=1
 	
+	while (1)
+	{
 	
 	
 	printf("Accessing ADC range (0x%04x)\n", ADC_ADDR);
@@ -39,7 +41,7 @@ void decoder_test(void)
 	*sram_addr3 = 0x55;
 	_delay_ms(1000);
 
-	
+	}
 	
 	
 }

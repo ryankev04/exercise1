@@ -14,35 +14,64 @@
 #include "Sram.h"
 #include "Decoder.h"
 #include "ADC.h"
+#include "Spi.h"
+#include "oled.h"
 #include <util/delay.h>
 
-int main(void){
+
+const char* dir_name(joystick_dir_t d)
+{
+	switch(d)
+	{
+		case JOY_LEFT: return "LEFT";
+		case JOY_RIGHT: return "RIGHT";
+		case JOY_UP: return "UP";
+		case JOY_DOWN: return "DOWN";
+		default: return "NEUTRAL";
+	}
+}
+
+
+
+
+int main(void)
+{
 	
 uart1_init();
-fdevopen(uart_putchar, uart_getchar);
-printf("Hello 2 from ATmega162!\n");
+	FILE *uart_stream = fdevopen(uart_putchar, uart_getchar);   // save the pointer!
+	stdout = uart_stream;
+
+	spi_master_init();
+	oled_init();
+
+	printf("Hello 2 from ATmega162!\n");   // -> RS232
+
+	stdout = &oled_stdio;
+	printf("HELLO OLED");                    // -> display
+
+	stdout = uart_stream;                    // switch back
+	printf("Back on RS232\n");
 
 Xmem_init();	
 		
-adc_clk_init();
+//adc_clk_init();
 //Latch_test();
 //SRAM_test();
 //SRAM_single_test();
 //decoder_test();
 joystick_calibrate();
 //joy_read();
-	
+
+spi_master_init();
+oled_init();
+
+
 	while (1)
 	{
-		joy_slider_read();
-
+		//joy_slider_read();
+		//joystick_dir_t dir = joy_dir();
+		//printf("Dir: %s\n", dir_name(dir));
+		//_delay_ms(200);
 	}
 }
 
-// code for the usart need to be inside the while loop 
-/*
-		if (uart1_available()){
-			uint8_t c = uart1_receive();
-			printf("%c" , c);
-		}
-*/

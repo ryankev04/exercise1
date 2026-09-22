@@ -8,6 +8,10 @@ Decoder.c
 
 main.c
 
+oled.c
+
+Spi.c
+
 Sram.c
 
 usart.c
