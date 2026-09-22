@@ -11,6 +11,10 @@
 
 #define MENU_MAX_ITEMS 8
 
+// Special sentinel value for submenus[i]: means "clicking this item
+// pops back to the parent menu" instead of selecting a leaf or
+// entering a real sub-menu.
+#define MENU_BACK ((menu_t *)1)
 typedef enum {
 	NAV_NEUTRAL,
 	NAV_UP,

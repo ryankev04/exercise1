@@ -15,13 +15,13 @@
 // UNVERIFIED PLACEHOLDERS -- confirm with a raw print test
 // (print j.x, j.y, j.btn while moving the stick / pressing the button)
 // before trusting these:
-#define NAV_CENTER    52
-#define NAV_THRESHOLD 5
-#define NAV_BTN_PRESSED_VALUE 0
+#define NAV_CENTER    126
+#define NAV_THRESHOLD 40
+#define NAV_BTN_PRESSED_VALUE 1
 
 // A small "stack" of menus, so we can go INTO a sub-menu and come
 // BACK OUT of it later. depth=0 is the top-level menu.
-#define MENU_STACK_DEPTH 4
+#define MENU_STACK_DEPTH 8
 
 // Reads the joystick right now and turns it into one simple "event":
 // which direction it's pushed, or whether the button is clicked.
@@ -84,7 +84,7 @@ int8_t menu_run(menu_t *root)
 {
 	menu_t *stack[MENU_STACK_DEPTH];
 	uint8_t selected_stack[MENU_STACK_DEPTH];  // which item is highlighted, per menu level
-	uint8_t depth = 0;
+	uint8_t depth = 0;   
 
 	stack[0] = root;
 	selected_stack[0] = 0;
@@ -124,14 +124,22 @@ int8_t menu_run(menu_t *root)
 		}
 		else if (event == NAV_CLICK) {
 			menu_t *sub = current->submenus[*sel];
-			if (sub != NULL && depth < MENU_STACK_DEPTH - 1)
+			
+			if (sub == MENU_BACK) {
+				if (depth > 0) {
+					depth--;
+					menu_draw(stack[depth], selected_stack[depth]);
+				}
+			}
+			else if (sub != NULL && depth < MENU_STACK_DEPTH - 1)
 			 {
 				// This item leads to a sub-menu -- go one level deeper.
 				depth++;
 				stack[depth] = sub;
 				selected_stack[depth] = 0;
 				menu_draw(sub, 0);
-				} else if (sub == NULL) 
+				} 
+				else if (sub == NULL) 
 				{
 					// This item is a final choice, not a sub-menu -- we're done.
 				return *sel;

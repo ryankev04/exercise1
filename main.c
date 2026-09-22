@@ -21,6 +21,7 @@
 #include <util/delay.h>
 
 
+uint8_t last_nav = 0;
 const char* dir_name(joystick_dir_t d)
 {
 	switch(d)
@@ -70,11 +71,18 @@ oled_init();
 //printf("HELLO OLED");                    // -> display
 oled_clear();
 
+static menu_t options_menu = {
+	.title = "Options",
+	.items = { "Brightness", "Sound", "Back" },
+	.item_count = 3,
+	.submenus = { NULL, NULL, MENU_BACK }   // all leaves for now -- see note below
+};
+
 static menu_t main_menu = {
 	.title = "Main Menu",
 	.items = { "Start Game", "Options", "About" },
 	.item_count = 3,
-	.submenus = { NULL, NULL, NULL }
+	.submenus = { NULL, &options_menu, NULL }
 };
 
 int8_t choice = menu_run(&main_menu);
@@ -82,6 +90,27 @@ printf("Selected: %d\n", choice);
 
 	while (1)
 	{
+	//	io_joystick_t j = io_read_joystick();
+	//	printf("x=%d y=%d btn=%d\n", j.x, j.y, j.btn);
+	//	_delay_ms(200);
+	//io_buttons_t b = io_read_buttons();
+	//printf("right=0x%02X left=0x%02X nav=0x%02X\n", b.right, b.left, b.nav);
+	//_delay_ms(200);
+	
+	io_buttons_t b = io_read_buttons();
+
+	// Edge-triggered: only toggle the moment the button transitions
+	// to pressed, not continuously while held.
+	if ((b.nav & 0x01) != (last_nav & 0x01)) {
+		if (b.nav & 0x01) {   // adjust bit/polarity once confirmed via raw print
+			io_led_set(0, 1);   // LED 0 on
+			} else {
+			io_led_set(0, 0);   // LED 0 off
+		}
+	}
+	last_nav = b.nav;
+
+	_delay_ms(50);
 		//joy_slider_read();
 		//joystick_dir_t dir = joy_dir();
 		//printf("Dir: %s\n", dir_name(dir));
