@@ -94,7 +94,7 @@ void oled_init(void)
 	
 	// IO board doc own Recommended minimal initialization:
 	//   A1 (segment remap), C8 (scan direction), AF (output enable)
-	oled_command(0xAE)
+	oled_command(0xAE);
 	oled_command(0xD5); // clock divide ratio, divide ratio = A[3:0] + 1
 	oled_command(0x80); // higher bit oscillator frequency setting, higher value = faster
 	oled_command(0xA8); // "Set Multiplex Ratio", Table 9-4 p.33. MUX ratio = value + 1.
@@ -149,19 +149,23 @@ void oled_init(void)
 	oled_command(0x20); // set memort addressing mode
 	oled_command(0x02); // 0000 0010 -> A1=1, A0=0 -> Page Addressing Mode (also the reset default)
 	
+	// Datasheet p.26, Power ON sequence: SEG/COM outputs turn on ~100ms
+	// after the Display ON command is sent.
+	_delay_ms(100);
 	
-	
-	
+	// Display on
 	oled_command(0xAF);
 }
 
 
 void oled_clear(void)
 {
-	for (uint8_t page = 0; page < 8; page++) {
+	for (uint8_t page = 0; page < 8; page++) 
+	{
 		oled_goto_page(page);
 		oled_goto_column(0);
-		for (uint8_t col = 0; col < 128; col++) {
+		for (uint8_t col = 0; col < 128; col++) 
+		{
 			oled_data(0x00);
 		}
 	}
@@ -176,6 +180,18 @@ void oled_clear_line(uint8_t line)
 	}
 }
 
+void oled_print(const char *str)
+{
+	while (*str) {
+		uint8_t index = *str - ' ';   // font tables start at ASCII space
+		for (uint8_t col = 0; col < 5; col++) {
+			uint8_t column_byte = pgm_read_byte(&font5[index][col]);
+			oled_data(column_byte);
+		}
+		oled_data(0x00);   // 1-column gap between characters
+		str++;
+	}
+}
 
 // Remembers where the next character will be drawn, so repeated
 // printf() calls continue from where the last one left off.

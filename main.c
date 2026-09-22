@@ -16,6 +16,8 @@
 #include "ADC.h"
 #include "Spi.h"
 #include "oled.h"
+#include "Io.h"
+#include "Menu.h"
 #include <util/delay.h>
 
 
@@ -46,11 +48,10 @@ uart1_init();
 
 	printf("Hello 2 from ATmega162!\n");   // -> RS232
 
-	stdout = &oled_stdio;
-	printf("HELLO OLED");                    // -> display
+	
 
-	stdout = uart_stream;                    // switch back
-	printf("Back on RS232\n");
+	//stdout = uart_stream;                    // switch back
+	//printf("Back on RS232\n");
 
 Xmem_init();	
 		
@@ -65,6 +66,19 @@ joystick_calibrate();
 spi_master_init();
 oled_init();
 
+//stdout = &oled_stdio;
+//printf("HELLO OLED");                    // -> display
+oled_clear();
+
+static menu_t main_menu = {
+	.title = "Main Menu",
+	.items = { "Start Game", "Options", "About" },
+	.item_count = 3,
+	.submenus = { NULL, NULL, NULL }
+};
+
+int8_t choice = menu_run(&main_menu);
+printf("Selected: %d\n", choice);
 
 	while (1)
 	{
