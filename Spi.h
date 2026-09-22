@@ -28,10 +28,10 @@
 typedef enum {
 	SPI_SLAVE_DISPLAY,   // DISP_CS -- the OLED's SSD1309 controller
 	SPI_SLAVE_IO         // IO_CS -- the User-IO board's
-	
 } spi_slave_t;
 
 void spi_master_init(void);
+void spi_deselect_all(void);
 void spi_select_slave(spi_slave_t slave);
 void spi_deselect_slave(spi_slave_t slave);
 uint8_t spi_transfer_byte (uint8_t data);

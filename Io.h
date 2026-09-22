@@ -9,6 +9,11 @@
 
 #include <stdint.h>
 
+// Valid input bits returned by the User-I/O board firmware.
+#define IO_RIGHT_BUTTON_MASK 0x3F
+#define IO_LEFT_BUTTON_MASK  0x7F
+#define IO_NAV_BUTTON_MASK   0x1F
+
 typedef struct {
 	uint8_t x;
 	uint8_t y;
@@ -23,6 +28,7 @@ typedef struct {
 
 io_buttons_t io_read_buttons(void);
 void io_led_set(uint8_t led_n, uint8_t on);
+void io_led_groups_update(uint8_t left_active, uint8_t right_active);
 io_joystick_t io_read_joystick(void);
 
 #endif //IO_H_

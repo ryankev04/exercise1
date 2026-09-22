@@ -18,8 +18,8 @@ io_joystick_t io_read_joystick(void)
 	spi_transfer_byte(0x03);   // command: "Joystick" (IO board doc)
 	_delay_us(40);              // command -> first data byte gap (board doc)
 
-// Sending 0x00 here is a dummy byte -- we don't care what we send,
-// only what comes back. SPI can't receive without also transmitting.
+	// Sending 0x00 here is a dummy byte -- we don't care what we send,
+	// only what comes back. SPI can't receive without also transmitting.
 	result.x = spi_transfer_byte(0x00);
 	_delay_us(2);                // data -> data gap (board doc)
 
@@ -77,6 +77,10 @@ io_buttons_t io_read_buttons(void)
 */
 void io_led_set(uint8_t led_n, uint8_t on)
 {
+	if (led_n > 5) {
+		return;
+	}
+	
 	spi_select_slave(SPI_SLAVE_IO);
 
 	spi_transfer_byte(0x05);   // command: "LED on/off"
@@ -87,3 +91,35 @@ void io_led_set(uint8_t led_n, uint8_t on)
 
 	spi_deselect_slave(SPI_SLAVE_IO);
 }
+
+/*
+ * Drives the LEDs as two logical banks:
+ *   left_active  -> physical LED1, LED2 and LED3 (indices 0..2)
+ *   right_active -> physical LED4, LED5 and LED6 (indices 3..5)
+ *
+ * The previous state is remembered so that the SPI bus is only used when a
+ * bank actually changes. This keeps button polling responsive and avoids six
+ * redundant LED commands on every pass through the menu loop.
+ */
+void io_led_groups_update(uint8_t left_active, uint8_t right_active)
+{
+	static uint8_t previous_state = 0xFF;
+	uint8_t state = (left_active ? 0x01 : 0x00)
+	| (right_active ? 0x02 : 0x00);
+
+	if ((state & 0x01) != (previous_state & 0x01)) {
+		for (uint8_t led = 0; led < 3; led++) {
+			io_led_set(led, left_active);
+		}
+	}
+
+	if ((state & 0x02) != (previous_state & 0x02)) {
+		for (uint8_t led = 3; led < 6; led++) {
+			io_led_set(led, right_active);
+		}
+	}
+
+	previous_state = state;
+}
+
+

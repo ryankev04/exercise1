@@ -21,7 +21,6 @@
 #include <util/delay.h>
 
 
-uint8_t last_nav = 0;
 const char* dir_name(joystick_dir_t d)
 {
 	switch(d)
@@ -36,60 +35,50 @@ const char* dir_name(joystick_dir_t d)
 
 
 
-
 int main(void)
 {
-	
-uart1_init();
+	uart1_init();
 	FILE *uart_stream = fdevopen(uart_putchar, uart_getchar);   // save the pointer!
 	stdout = uart_stream;
 
-	spi_master_init();
-	oled_init();
-
 	printf("Hello 2 from ATmega162!\n");   // -> RS232
-
-	
 
 	//stdout = uart_stream;                    // switch back
 	//printf("Back on RS232\n");
 
-Xmem_init();	
+	Xmem_init();	
 		
-//adc_clk_init();
-//Latch_test();
-//SRAM_test();
-//SRAM_single_test();
-//decoder_test();
-joystick_calibrate();
-//joy_read();
+	//adc_clk_init();
+	//Latch_test();
+	//SRAM_test();
+	//SRAM_single_test();
+	//decoder_test();
+	joystick_calibrate();
+	//joy_read();
 
-spi_master_init();
-oled_init();
+	spi_master_init();
+	oled_init();
 
-stdout = &oled_stdio;
-//printf("HELLO OLED");                    // -> display
-oled_clear();
+	stdout = &oled_stdio;
+	//printf("HELLO OLED");                    // -> display
+	oled_clear();
 
-static menu_t options_menu = {
-	.title = "Options",
-	.items = { "Brightness", "Sound", "Back" },
-	.item_count = 3,
-	.submenus = { NULL, NULL, MENU_BACK }   // all leaves for now -- see note below
-};
+	static menu_t options_menu = {
+		.title = "Options",
+		.items = { "Brightness", "Sound", "Back" },
+		.item_count = 3,
+		.submenus = { NULL, NULL, MENU_BACK }   // all leaves for now -- see note below
+	};
 
-static menu_t main_menu = {
-	.title = "Main Menu",
-	.items = { "Start Game", "Options", "About" },
-	.item_count = 3,
-	.submenus = { NULL, &options_menu, NULL }
-};
+	static menu_t main_menu = {
+		.title = "Main Menu",
+		.items = { "Start Game", "Options", "About" },
+		.item_count = 3,
+		.submenus = { NULL, &options_menu, NULL }
+	};
 
-uint8_t last_right = 0;
-uint8_t last_left  = 0;
-uint8_t last_nav   = 0;
-int8_t choice = menu_run(&main_menu);
-printf("Selected: %d\n", choice);
+	int8_t choice = menu_run(&main_menu);
+	printf("Selected: %d\n", choice);
 
 	while (1)
 	{
@@ -98,33 +87,15 @@ printf("Selected: %d\n", choice);
 	//	_delay_ms(200);
 	
 	io_buttons_t b = io_read_buttons();
+	nav_event_t joystick_event = nav_read();
 	//printf("right=0x%02X left=0x%02X nav=0x%02X\n", b.right, b.left, b.nav);
 	//_delay_ms(200);
 	
-// --- nav press (already working) ---
-// --- Right switches: direct 1:1 with all 6 LEDs ---
-for (uint8_t i = 0; i < 6; i++) {
-	uint8_t mask = (1 << i);
-	if ((b.right & mask) != (last_right & mask)) {
-		io_led_set(i, (b.right & mask) ? 1 : 0);
-	}
-}
+	uint8_t left_active = ((b.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
+	uint8_t right_active = ((b.right & IO_RIGHT_BUTTON_MASK) != 0) || ((b.nav & IO_NAV_BUTTON_MASK) != 0);
+	io_led_groups_update(left_active, right_active);
 
-// --- Left switches: any of them lights LED 0 (shared with SR1) ---
-if ((b.left != 0) != (last_left != 0)) {
-	io_led_set(0, (b.left != 0) ? 1 : 0);
-}
-
-// --- nav press: lights LED 5 (shared with SR6) ---
-if ((b.nav & 0x01) != (last_nav & 0x01)) {
-	io_led_set(5, (b.nav & 0x01) ? 1 : 0);
-}
-
-last_right = b.right;
-last_left  = b.left;
-last_nav   = b.nav;
-
-_delay_ms(50);
+	_delay_ms(50);
 		//joy_slider_read();
 		//joystick_dir_t dir = joy_dir();
 		//printf("Dir: %s\n", dir_name(dir));

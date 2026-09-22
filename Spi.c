@@ -26,17 +26,26 @@ void spi_master_init(void)
 
 // here we simply set DIS_Cs and io_CS to high because the pins are originally low when you start
 // setting them high will just deselect them
-	SS_DISPLAY_PORT |= (1 << SS_DISPLAY_PIN);
-	SS_IO_PORT      |= (1 << SS_IO_PIN);
+	spi_deselect_all();
 
 	// SPE: enable SPI. MSTR: master mode. SPR0: clock = fosc/16. clock = 307.2kHz
 	SPCR = (1 << SPE) | (1 << MSTR) | (1 << SPR0);
+}
+
+// No SPI slave may be selected at the same time as another slave.
+void spi_deselect_all(void)
+{
+	SS_DISPLAY_PORT |= (1 << SS_DISPLAY_PIN);
+	SS_IO_PORT      |= (1 << SS_IO_PIN);
 }
 
 // Picks ONE device to "wake up" and listen to the SPI bus.
 // CS pins are active-LOW, so pulling one LOW = select this device.
 void spi_select_slave(spi_slave_t slave)
 {
+	// Establish a safe idle state before selecting the requested device.
+	spi_deselect_all();
+	
 	switch (slave) {
 		case SPI_SLAVE_DISPLAY:
 		// &= bitwise AND  ~=bitwise NOT
@@ -67,7 +76,6 @@ void spi_deselect_slave(spi_slave_t slave)
 * spi_transfer_byte(): SPI is full-duplex -- writing SPDR starts the clock
 * and simultaneously shifts a byte OUT (to the slave) and IN (from the slave).
 */
-
 uint8_t spi_transfer_byte (uint8_t data)
 {
 	SPDR = data;
