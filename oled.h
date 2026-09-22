@@ -22,6 +22,8 @@
 void oled_command(uint8_t cmd);
 void oled_reset(void);
 void oled_init(void);
+void oled_clear(void);
+void oled_clear_line(uint8_t line);
 
 int oled_putchar(char c, FILE *stream);
 extern FILE oled_stdio;

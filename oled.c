@@ -92,14 +92,90 @@ void oled_init(void)
 
 	oled_reset();
 	
-	// IO board doc's own Recommended minimal initialization:
+	// IO board doc own Recommended minimal initialization:
 	//   A1 (segment remap), C8 (scan direction), AF (output enable)
+	oled_command(0xAE)
+	oled_command(0xD5); // clock divide ratio, divide ratio = A[3:0] + 1
+	oled_command(0x80); // higher bit oscillator frequency setting, higher value = faster
+	oled_command(0xA8); // "Set Multiplex Ratio", Table 9-4 p.33. MUX ratio = value + 1.
+	oled_command(0x3F);	// 0x3F (63) -> 64 MUX, matching this panel's actual 64 physical rows.
+	oled_command(0xD3); // "Set Display Offset", Table 9-4 p.33. Vertical shift of RAM vs
+	oled_command(0x00); // physical rows. 0x00 = no shift.
+	
+	// Set Display Start Line, Table 9-4 p.33. Low 6 bits pick which RAM .
+	//Row appears at the physical top of the screen. 0x40 = start line 0.
+	// Orientation  IO board doc's own recommendation:
+	// "flip the display both horizontally (A1) and vertically (C8)"
+	oled_command(0x40); 
+	
+	// "Set Segment Re-map", Table 9-4 p.33. A1h flips the display
+	// horizontally (column 127 maps to SEG0, instead of column 0).
 	oled_command(0xA1);
+	
+	// "Set COM Output Scan Direction", Table 9-4 p.33. C8h flips the
+	// display vertically (scans COM[N-1] down to COM0).
 	oled_command(0xC8);
+	
+	// Set COM Pins HW Config, Table 9-4 p.33. 
+	// row lines are physically wired internally -- 0x12 matches the
+	// reset-default config. 
+	oled_command(0xDA);
+	oled_command(0x12);
+	
+
+	oled_command(0x81); // "Set Contrast Control", Table 9-1 p.27. 0x7F = reset-default,
+	oled_command(0x7F); // mid-range brightness (0-255 range).
+	
+	
+
+	oled_command(0xD9); // "Set Pre-charge Period", Table 9-5 p.34. Internal pixel charge/
+	oled_command(0x22); // discharge timing. 0x22 = reset-default value for both phases.
+	
+	
+
+	oled_command(0xDB); // "Set VCOMH Deselect Level", Table 9-5 p.34. 0x34 = reset-default
+	oled_command(0x34); // voltage level (~0.78 x VCC) for deselected rows.
+	
+	// "Entire Display ON", Table 9-1 p.27. A4h = show actual RAM content
+	// (not forced fully-on regardless of memory).
+
+	oled_command(0xA4);
+	
+	// "Set Normal/Inverse Display", Table 9-1 p.27. A6h = normal:
+	// a 1 bit in RAM lights a pixel, a 0 bit leaves it dark.
+	oled_command(0xA6);
+	
+
 	oled_command(0x20); // set memort addressing mode
 	oled_command(0x02); // 0000 0010 -> A1=1, A0=0 -> Page Addressing Mode (also the reset default)
+	
+	
+	
+	
 	oled_command(0xAF);
 }
+
+
+void oled_clear(void)
+{
+	for (uint8_t page = 0; page < 8; page++) {
+		oled_goto_page(page);
+		oled_goto_column(0);
+		for (uint8_t col = 0; col < 128; col++) {
+			oled_data(0x00);
+		}
+	}
+}
+
+void oled_clear_line(uint8_t line)
+{
+	oled_goto_page(line);
+	oled_goto_column(0);
+	for (uint8_t col = 0; col < 128; col++) {
+		oled_data(0x00);
+	}
+}
+
 
 // Remembers where the next character will be drawn, so repeated
 // printf() calls continue from where the last one left off.
