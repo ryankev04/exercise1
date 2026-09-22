@@ -79,11 +79,11 @@ void io_led_set(uint8_t led_n, uint8_t on)
 {
 	spi_select_slave(SPI_SLAVE_IO);
 
-	spi_transfer_byte(0x05);
-	_delay_us(40);
+	spi_transfer_byte(0x05);   // command: "LED on/off"
+	_delay_us(40);              // command -> first data byte gap (board doc)
 
-	spi_transfer_byte(led_n);
-	spi_transfer_byte(on);
+	spi_transfer_byte(led_n);   // which LED, 0-5
+	spi_transfer_byte(on);      // 0 = off, anything else = on
 
 	spi_deselect_slave(SPI_SLAVE_IO);
 }

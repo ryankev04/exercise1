@@ -67,7 +67,7 @@ joystick_calibrate();
 spi_master_init();
 oled_init();
 
-//stdout = &oled_stdio;
+stdout = &oled_stdio;
 //printf("HELLO OLED");                    // -> display
 oled_clear();
 
@@ -85,6 +85,9 @@ static menu_t main_menu = {
 	.submenus = { NULL, &options_menu, NULL }
 };
 
+uint8_t last_right = 0;
+uint8_t last_left  = 0;
+uint8_t last_nav   = 0;
 int8_t choice = menu_run(&main_menu);
 printf("Selected: %d\n", choice);
 
@@ -93,24 +96,35 @@ printf("Selected: %d\n", choice);
 	//	io_joystick_t j = io_read_joystick();
 	//	printf("x=%d y=%d btn=%d\n", j.x, j.y, j.btn);
 	//	_delay_ms(200);
-	//io_buttons_t b = io_read_buttons();
+	
+	io_buttons_t b = io_read_buttons();
 	//printf("right=0x%02X left=0x%02X nav=0x%02X\n", b.right, b.left, b.nav);
 	//_delay_ms(200);
 	
-	io_buttons_t b = io_read_buttons();
-
-	// Edge-triggered: only toggle the moment the button transitions
-	// to pressed, not continuously while held.
-	if ((b.nav & 0x01) != (last_nav & 0x01)) {
-		if (b.nav & 0x01) {   // adjust bit/polarity once confirmed via raw print
-			io_led_set(0, 1);   // LED 0 on
-			} else {
-			io_led_set(0, 0);   // LED 0 off
-		}
+// --- nav press (already working) ---
+// --- Right switches: direct 1:1 with all 6 LEDs ---
+for (uint8_t i = 0; i < 6; i++) {
+	uint8_t mask = (1 << i);
+	if ((b.right & mask) != (last_right & mask)) {
+		io_led_set(i, (b.right & mask) ? 1 : 0);
 	}
-	last_nav = b.nav;
+}
 
-	_delay_ms(50);
+// --- Left switches: any of them lights LED 0 (shared with SR1) ---
+if ((b.left != 0) != (last_left != 0)) {
+	io_led_set(0, (b.left != 0) ? 1 : 0);
+}
+
+// --- nav press: lights LED 5 (shared with SR6) ---
+if ((b.nav & 0x01) != (last_nav & 0x01)) {
+	io_led_set(5, (b.nav & 0x01) ? 1 : 0);
+}
+
+last_right = b.right;
+last_left  = b.left;
+last_nav   = b.nav;
+
+_delay_ms(50);
 		//joy_slider_read();
 		//joystick_dir_t dir = joy_dir();
 		//printf("Dir: %s\n", dir_name(dir));
