@@ -25,9 +25,14 @@
 #define SS_IO_PORT   PORTB
 #define SS_IO_PIN    PB0         // SS2
 
+#define SS_CAN_DDR   DDRB
+#define SS_CAN_PORT  PORTB
+#define SS_CAN_PIN   PB1
+
 typedef enum {
 	SPI_SLAVE_DISPLAY,   // DISP_CS -- the OLED's SSD1309 controller
-	SPI_SLAVE_IO         // IO_CS -- the User-IO board's
+	SPI_SLAVE_IO,       // IO_CS -- the User-IO board's
+	SPI_SLAVE_CAN  // CAN_CS -- CAN of MCP2515
 } spi_slave_t;
 
 void spi_master_init(void);

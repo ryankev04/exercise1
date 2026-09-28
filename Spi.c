@@ -22,6 +22,7 @@ void spi_master_init(void)
 
 	SS_DISPLAY_DDR |= (1 << SS_DISPLAY_PIN);
 	SS_IO_DDR      |= (1 << SS_IO_PIN);
+	SS_CAN_DDR |= (1 << SS_CAN_PIN);
 
 
 // here we simply set DIS_Cs and io_CS to high because the pins are originally low when you start
@@ -37,6 +38,7 @@ void spi_deselect_all(void)
 {
 	SS_DISPLAY_PORT |= (1 << SS_DISPLAY_PIN);
 	SS_IO_PORT      |= (1 << SS_IO_PIN);
+	SS_CAN_PORT |= (1 << SS_CAN_PIN); 
 }
 
 // Picks ONE device to "wake up" and listen to the SPI bus.
@@ -52,7 +54,10 @@ void spi_select_slave(spi_slave_t slave)
 		SS_DISPLAY_PORT &= ~(1 << SS_DISPLAY_PIN);  // PB4 LOW -> OLED selected
 		break;
 		case SPI_SLAVE_IO:
-		SS_IO_PORT &= ~(1 << SS_IO_PIN);  // PB1 LOW -> IO board selected
+		SS_IO_PORT &= ~(1 << SS_IO_PIN);  // PB0 LOW -> IO board selected
+		break;
+		case SPI_SLAVE_CAN:
+		SS_CAN_PORT &= ~(1 << SS_CAN_PIN); //PB1 LOW -> CAN MCP2515 selected 
 		break;
 	}
 }
@@ -66,7 +71,10 @@ void spi_deselect_slave(spi_slave_t slave)
 		SS_DISPLAY_PORT |= (1 << SS_DISPLAY_PIN); // PB4 HIGH -> OLED deselected
 		break;
 		case SPI_SLAVE_IO:
-		SS_IO_PORT |= (1 << SS_IO_PIN);   // PB1 HIGH -> IO board deselected
+		SS_IO_PORT |= (1 << SS_IO_PIN);   // PB0 HIGH -> IO board deselected
+		break;
+		case SPI_SLAVE_CAN:
+		SS_CAN_PORT |= (1 << SS_CAN_PIN);  // PB1 HIGH -> CAN MCP2515 deselected
 		break;
 	}
 }
