@@ -81,6 +81,19 @@ nav_event_t nav_read(void)
 }
 
 // First item shown when a menu contains more than six entries.
+/*
+* Scrolling: only 6 rows fit on screen, but a menu can hold up to
+* MENU_MAX_ITEMS (8). These two helpers decide which side is visible.
+*/
+
+// First item shown when a menu contains more than six entries.
+//
+//  As long as the selection is within the first 6 items, show items
+// 0..5. Once it goes further, scroll so the selected item sits on the
+// LAST visible row.
+//   selected = 0..5 -> first = 0          (shows 0..5)
+//   selected = 6    -> first = 6 - 5 = 1  (shows 1..6)
+//   selected = 7    -> first = 7 - 5 = 2  (shows 2..7)
 static uint8_t menu_first_visible_item(uint8_t selected)
 {
 	if (selected < MENU_VISIBLE_ITEMS) {
@@ -88,6 +101,12 @@ static uint8_t menu_first_visible_item(uint8_t selected)
 	}
 	return selected - (MENU_VISIBLE_ITEMS - 1);
 }
+
+
+// Which OLED row (page) the selected item is currently drawn on.
+//   row = 1 (first item row) + how far the selection is from the top
+//         of the visible slice.
+// Example: selected = 7, first visible = 2 -> row = 1 + 7 - 2 = 6.
 
 static uint8_t menu_selected_row(uint8_t selected)
 {
@@ -113,7 +132,11 @@ static void menu_draw_help(pending_action_t pending)
 	}
 }
 
+
+
 // Change only the one-character marker; the item text remains untouched.
+// Used for blinking: redrawing the whole screen every 240 ms would flicker
+// and waste SPI time, so only column 0 of the selected row is rewritten.
 static void menu_draw_marker(uint8_t selected, char marker)
 {
 	char text[2] = { marker, '\0' };
@@ -142,6 +165,19 @@ static void menu_draw(menu_t *menu, uint8_t selected)
 	}
 	menu_draw_help(PENDING_NONE);
 }
+
+
+/*
+* menu_go_back(): leave the current submenu and return to its amin menu where it came from.
+*
+* Takes POINTERS to the stack, the selection array and depth, because it
+* has to change menu_run()'s local variables (C passes by value, so without
+* the pointer the change would be lost when the function returns).
+*
+* At depth 0 (root menu) there is nowhere to go, so it just redraws.
+* selected_stack[*depth] still holds the parent's old selection, so the
+* marker lands back on the item you entered from.
+*/
 
 static void menu_go_back(menu_t **stack, uint8_t *selected_stack, uint8_t *depth)
 {
@@ -175,6 +211,27 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 	menu_draw(stack[*depth], 0);
 }
 
+
+
+
+
+/*
+* menu_run(): the menu's main loop. Runs every ~20 ms and, each pass:
+*
+*   1. Reads the joystick event and the I/O-board buttons.
+*   2. Updates the two LED groups .
+*   3. Handles input in ONE of three modes, checked in this order:
+*        a) An action is ARMED (waiting)   -> wait for release / SR6 / blink
+*        b) Just CANCELLED (wait_for_neutral) -> ignore stick until centred
+*        c) NORMAL navigation              -> UP/DOWN/LEFT/RIGHT/CLICK
+*      Modes a) and b) end with "continue", so only one mode runs per pass.
+*
+* NOTE: this loop never exits -- there is no "return" inside while(1).
+* So the int8_t return value is never produced, and in main.c the code
+* after menu_run() (printf("Selected..."), the LED while loop) is never
+* reached. If you later want e.g. "Start Game" to leave the menu, add a
+* sentinel for it and "return" the selected index from here.
+*/
 int8_t menu_run(menu_t *root)
 {
 	menu_t *stack[MENU_STACK_DEPTH];
@@ -186,10 +243,10 @@ int8_t menu_run(menu_t *root)
 	menu_draw(stack[0], 0);  // show the menu before waiting for any input
 
 	nav_event_t last_event = NAV_NEUTRAL;
-	pending_action_t pending = PENDING_NONE;
-	uint8_t blink_ticks = 0;
-	uint8_t blink_visible = 1;
-	uint8_t wait_for_neutral = 0;
+	pending_action_t pending = PENDING_NONE; // is a LEFT/RIGHT action armed
+	uint8_t blink_ticks = 0; // counts loop passes between blink toggles
+	uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
+	uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
 
 	while (1) {
 		nav_event_t event = nav_read();
@@ -209,6 +266,8 @@ int8_t menu_run(menu_t *root)
 		uint8_t right_active = ((buttons.right & IO_RIGHT_BUTTON_MASK) != 0) || ((buttons.nav & IO_NAV_BUTTON_MASK) != 0);
 		io_led_groups_update(left_active, right_active);
 		
+				// selected is a POINTER into selected_stack[], so writing *selected
+				// updates the stored selection for this level directly.
 		menu_t *current = stack[depth];
 		uint8_t *selected = &selected_stack[depth];
 		
@@ -218,11 +277,19 @@ int8_t menu_run(menu_t *root)
 		 */
 		if (pending != PENDING_NONE) {
 			if (sr6_pressed) {
+				
+			// Cancel: forget the armed action and restore the normal screen.
+			// The stick is probably still held sideways, so wait for it to
+			// be centred before accepting new input
 				pending = PENDING_NONE;
 				wait_for_neutral = 1;
 				menu_draw(current, *selected);
 			}
 			else {
+				
+				// "Released" = the stick is no longer pushed in the armed
+				// direction. (It counts as released as soon as it leaves that
+				// direction -- back to neutral, or even moved up/down.)
 				uint8_t released =
 				(pending == PENDING_BACK   && event != NAV_LEFT)
 				|| (pending == PENDING_SELECT && event != NAV_RIGHT);

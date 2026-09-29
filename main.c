@@ -78,13 +78,11 @@ int main(void)
 	};
 
 	int8_t choice = menu_run(&main_menu);
-	printf("Selected: %d\n", choice);
+	//printf("Selected: %d\n", choice);
 
 	while (1)
 	{
-	//	io_joystick_t j = io_read_joystick();
-	//	printf("x=%d y=%d btn=%d\n", j.x, j.y, j.btn);
-	//	_delay_ms(200);
+
 	
 	io_buttons_t b = io_read_buttons();
 	nav_event_t joystick_event = nav_read();
@@ -96,10 +94,7 @@ int main(void)
 	io_led_groups_update(left_active, right_active);
 
 	_delay_ms(50);
-		//joy_slider_read();
-		//joystick_dir_t dir = joy_dir();
-		//printf("Dir: %s\n", dir_name(dir));
-		//_delay_ms(200);
+
 	}
 }
 

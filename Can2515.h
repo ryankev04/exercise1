@@ -18,9 +18,29 @@
 #define MCP_READ_STATUS 0xA0
 #define MCP_BIT_MODIFY  0x05
 
+
+// Register addresses, Table 11-2, p.63
+#define MCP_CANSTAT     0x0E
+#define MCP_CANCTRL     0x0F
+#define MCP_CNF3        0x28
+#define MCP_CNF2        0x29
+#define MCP_CNF1        0x2A
+
+// Operation modes, CANCTRL.REQOP / CANSTAT.OPMOD (upper 3 bits), p.60-61
+#define MCP_MODE_MASK     0xE0
+#define MCP_MODE_NORMAL   0x00
+#define MCP_MODE_LOOPBACK 0x40
+#define MCP_MODE_CONFIG   0x80   // set the configuration mode either CNF1 CNF2 CNF3
+
+#define INT_CAN_DDR   DDRE
+#define INT_CAN_PORT  PORTE
+#define INT_CAN_PIN   PE0
+
+uint8_t mcp2515_init(uint8_t mode);
 void mcp2515_reset(void);
 void mcp2515_write(uint8_t address, uint8_t data);
 void mcp2515_rts(uint8_t buffer_mask);
+uint8_t mcp2515_read(uint8_t address);
 uint8_t mcp2515_read_status(void);
 void mcp2515_bit_modify(uint8_t address, uint8_t mask, uint8_t data):
 #endif //CAN2515_H_
