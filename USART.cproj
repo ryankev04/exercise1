@@ -142,6 +142,18 @@
     <Compile Include="ADC.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="can.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="can.h">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Can2515.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Can2515.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="Decoder.c">
       <SubType>compile</SubType>
     </Compile>

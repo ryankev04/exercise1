@@ -15,6 +15,8 @@
 #include "Decoder.h"
 #include "ADC.h"
 #include "Spi.h"
+#include "Can2515.h"
+#include "can.h"
 #include "oled.h"
 #include "Io.h"
 #include "Menu.h"
@@ -47,19 +49,26 @@ int main(void)
 	//printf("Back on RS232\n");
 
 	Xmem_init();	
-		
+	
 	//adc_clk_init();
 	//Latch_test();
 	//SRAM_test();
 	//SRAM_single_test();
 	//decoder_test();
-	joystick_calibrate();
-	//joy_read();
+	//joystick_calibrate();
 
 	spi_master_init();
+		// ---- CAN: init in Loop back mode and self-test (output -> RS232) ----
+		if (mcp2515_init(MCP_MODE_LOOPBACK) != 0) {
+			printf("MCP2515 init FAILED, CANSTAT=0x%02X\n", mcp2515_read(MCP_CANSTAT));
+			} else {
+			printf("MCP2515 OK (loop back)\n");
+			mcp2515_int_init();      // MCP2515 INT -> PE0 (INT2)
+			can_loopback_test();
+		}
 	oled_init();
 
-	stdout = &oled_stdio;
+	//stdout = &oled_stdio;
 	//printf("HELLO OLED");                    // -> display
 	oled_clear();
 
@@ -86,8 +95,7 @@ int main(void)
 	
 	io_buttons_t b = io_read_buttons();
 	nav_event_t joystick_event = nav_read();
-	//printf("right=0x%02X left=0x%02X nav=0x%02X\n", b.right, b.left, b.nav);
-	//_delay_ms(200);
+
 	
 	uint8_t left_active = ((b.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
 	uint8_t right_active = ((b.right & IO_RIGHT_BUTTON_MASK) != 0) || ((b.nav & IO_NAV_BUTTON_MASK) != 0);

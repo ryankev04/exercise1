@@ -4,11 +4,52 @@
  * Created: 25.09.2026 14:05:14
  *  Author: ngabo
  */ 
-
+#include "usart.h"
 #include "Can2515.h"
 #include "Spi.h"
-#include "usart.h"
 #include <util/delay.h>
+
+
+
+/*
+INT
+* The MCP2515 pulls INT LOW when an enabled event happens (CANINTE) and keeps
+* it low until the MCU clears the flag in CANINTF (section 7.0, p.51).
+* The ISR only sets a flag -- no SPI inside it. If it interrupted an OLED or
+* IO-board transfer and did SPI itself, two slaves would be selected at once.
+* The main loop does the SPI work instead.
+*
+* INT2 on the ATmega162 is EDGE-triggered only. If a second event arrives
+* while INT is already low there is no new edge, so mcp2515_int_pending()
+* also checks whether the pin is still low.
+*/
+
+
+static volatile uint8_t mcp_int_flag = 0;
+
+ISR(INT2_vect)
+{
+	mcp_int_flag = 1;
+}
+
+void mcp2515_int_init(void)
+{
+	INT_CAN_DDR &= ~(1 << INT_CAN_PIN);   // PE0 as input (MCP2515 INT is push-pull)
+	EMCUCR &= ~(1 << ISC2);               // ISC2 = 0 -> falling edge (INT going low)
+	GIFR    = (1 << INTF2);               // clear any old INT2 flag (write 1 to clear)
+	GICR   |= (1 << INT2);                // enable INT2
+	// Global interrupts (sei) are already enabled in uart1_init().
+}
+
+uint8_t mcp2515_int_pending(void)
+{
+	uint8_t pending = mcp_int_flag || !(INT_CAN_PINR & (1 << INT_CAN_PIN));  // flag OR pin still low
+	mcp_int_flag = 0;
+	return pending;
+}
+
+
+
 
 /*
 * mcp2515_reset(): datasheet chapter12.2, p.65.
@@ -110,7 +151,9 @@ void mcp2515_bit_modify(uint8_t address, uint8_t mask, uint8_t data)
 */
 uint8_t mcp2515_init(uint8_t mode)
 {
+	
 	mcp2515_reset();          // chip enters Configuration mode (12.2, p.65)
+	//mcp2515_int_init();
 	_delay_ms(1);             // wait for oscillator start-up timer (8.1, p.55)
 
 	// after reset we must be in Configuration mode.
@@ -125,6 +168,12 @@ uint8_t mcp2515_init(uint8_t mode)
 	mcp2515_write(MCP_CNF2, 0x89);  // BTLMODE=1, SAM=0, PS1 = 2 TQ, PropSeg = 2 TQ
 	mcp2515_write(MCP_CNF3, 0x02);  // PS2 = 3 TQ
 
+	
+	// Interrupts (Register 7-1, p.52): pull INT low when a message lands in RXB0.
+	// Clear old flags first so INT starts released (high).
+	mcp2515_write(MCP_CANINTF, 0x00);
+	mcp2515_write(MCP_CANINTE, MCP_RX0I);
+	
 	// Request the operating mode (REQOP = upper 3 bits of CANCTRL)
 	mcp2515_bit_modify(MCP_CANCTRL, MCP_MODE_MASK, mode);
 
