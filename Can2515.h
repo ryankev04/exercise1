@@ -27,6 +27,9 @@
 #define MCP_CNF1        0x2A
 #define MCP_CANINTE     0x2B   // which events pull INT low   (Register 7-1, p.52)
 #define MCP_CANINTF     0x2C   // which events have happened  (Register 7-2, p.53)
+#define MCP_RXB0CTRL    0x60   // receive buffer 0 control (Register 4-1, p.27)
+#define MCP_RXB1CTRL    0x70   // receive buffer 1 control (Register 4-2, p.28)
+#define MCP_RXM_ANY     0x60   // RXM = 11: masks/filters off, receive any message
 
 // CANINTE / CANINTF bits (same position in both registers), p.52-53
 #define MCP_RX0I        0x01   // message received in RXB0

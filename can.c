@@ -56,11 +56,17 @@
 *   4. Write the data    -> TXB0D0 .. TXB0D7
 *   5. Send RTS (request-to-send) for buffer 0.
 */
-void can_send(const can_message_t *msg)
+uint8_t  can_send(const can_message_t *msg)
 {
-	
 	//  Wait for the previous message in TXB0 to finish.
-	while (mcp2515_read_status() & STATUS_TX0REQ) { }
+	// Wait for TXB0 to be free, but give up after ~10 ms
+	uint8_t t = 0;
+		while (mcp2515_read_status() & STATUS_TX0REQ) {
+				if (++t > 10) {
+					return 1;            // previous frame was never ACKed
+				}
+				_delay_ms(1);
+			}
 	
 	//  The 11-bit ID is split over two registers (Register 3-3 and 3-4):
 	//    SIDH holds ID bits 10..3  -> id >> 3
@@ -85,6 +91,9 @@ void can_send(const can_message_t *msg)
 	
 	//  Request-to-send for TXB0 only (bit 0 of the mask), section 12.7.
 	mcp2515_rts(0x01);
+	
+	// 0 = queued, 1 = TXB0 stuck
+return 0;
 }
 
 uint8_t can_receive(can_message_t *msg)
@@ -146,7 +155,7 @@ uint8_t can_receive(can_message_t *msg)
 *   Test 1: raw bytes  (data[])      -> expect  48 69 21  ("Hi!")
 *   Test 2: numbers    (positions[]) -> expect  1500 and -300
 */
- void can_loopback_test(void)
+ /*void can_loopback_test(void)
 {
 	// ---- Test 1: raw bytes ----------------------------------------------
 	can_message_t tx1 = {
@@ -168,7 +177,7 @@ uint8_t can_receive(can_message_t *msg)
 		printf("Test 1: nothing received\n");
 	}
 	
-	// ---- Test 2: two 32-bit numbers through the union -------------------
+	// ---- Test 2: two 32-bit numbers through the union ----------
 	can_message_t tx2 = { .id = 0x042, .length = 8 };   // 8 bytes = both numbers
 	tx2.positions[0] = 1500;
 	tx2.positions[1] = -300;
@@ -180,5 +189,18 @@ uint8_t can_receive(can_message_t *msg)
 		printf("Received id=0x%03X pos0=%ld pos1=%ld\n", rx2.id, rx2.positions[0], rx2.positions[1]);
 		} else {
 		printf("Test 2: nothing received\n");
+	}
+}*/
+ 
+void can_test(void)
+{
+	can_message_t tx1 = { 
+		.id = 0x123, 
+		.length = 3,
+		 .data = { 'H', 'i', '!' } };
+	if (can_send(&tx1) == 0) {
+		printf("Sent   id=0x%03X len=%d\n", tx1.id, tx1.length);
+		} else {
+		printf("Send failed: TXB0 stuck (no ACK from Node 2)\n");
 	}
 }

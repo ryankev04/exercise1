@@ -48,7 +48,7 @@ int main(void)
 	//stdout = uart_stream;                    // switch back
 	//printf("Back on RS232\n");
 
-	Xmem_init();	
+	//Xmem_init();	
 	
 	//adc_clk_init();
 	//Latch_test();
@@ -59,19 +59,19 @@ int main(void)
 
 	spi_master_init();
 		// ---- CAN: init in Loop back mode and self-test (output -> RS232) ----
-		if (mcp2515_init(MCP_MODE_LOOPBACK) != 0) {
+		if (mcp2515_init(MCP_MODE_NORMAL) != 0) {
 			printf("MCP2515 init FAILED, CANSTAT=0x%02X\n", mcp2515_read(MCP_CANSTAT));
 			} else {
-			printf("MCP2515 OK (loop back)\n");
+			printf("MCP2515 OK (normal back)\n");
 			mcp2515_int_init();      // MCP2515 INT -> PE0 (INT2)
-			can_loopback_test();
+			can_test();
 		}
-	oled_init();
+	//oled_init();
 
 	//stdout = &oled_stdio;
 	//printf("HELLO OLED");                    // -> display
-	oled_clear();
-
+	//oled_clear();
+/*
 	static menu_t options_menu = {
 		.title = "Options",
 		.items = { "Brightness", "Sound", "Back" },
@@ -88,20 +88,20 @@ int main(void)
 
 	int8_t choice = menu_run(&main_menu);
 	//printf("Selected: %d\n", choice);
-
+*/
 	while (1)
 	{
 
 	
-	io_buttons_t b = io_read_buttons();
-	nav_event_t joystick_event = nav_read();
+	//io_buttons_t b = io_read_buttons();
+	//nav_event_t joystick_event = nav_read();
 
 	
-	uint8_t left_active = ((b.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
+	/*uint8_t left_active = ((b.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
 	uint8_t right_active = ((b.right & IO_RIGHT_BUTTON_MASK) != 0) || ((b.nav & IO_NAV_BUTTON_MASK) != 0);
 	io_led_groups_update(left_active, right_active);
 
-	_delay_ms(50);
+	_delay_ms(50);*/
 
 	}
 }

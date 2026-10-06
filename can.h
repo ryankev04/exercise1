@@ -43,9 +43,10 @@ typedef struct {
 	};
 } can_message_t;
  
-void    can_send(const can_message_t *msg);
+uint8_t can_send(const can_message_t *msg);
 uint8_t can_receive(can_message_t *msg);   // returns 1 if a message was read, 0 if none
- void can_loopback_test(void);
+//void can_loopback_test(void);
+void can_test(void);
 uint8_t can_wait_receive(can_message_t *msg, uint8_t timeout_ms);
  
 #endif //CAN_H_

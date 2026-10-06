@@ -164,15 +164,17 @@ uint8_t mcp2515_init(uint8_t mode)
 	}
 
 	// CNF registers are only writable in Configuration mode (10.1, p.59)
-	mcp2515_write(MCP_CNF1, 0x00);  // SJW = 1 TQ, BRP = 0  -> TQ = 125 ns
-	mcp2515_write(MCP_CNF2, 0x89);  // BTLMODE=1, SAM=0, PS1 = 2 TQ, PropSeg = 2 TQ
-	mcp2515_write(MCP_CNF3, 0x02);  // PS2 = 3 TQ
+	mcp2515_write(MCP_CNF1, 0x01);  // SJW = 1 TQ, BRP = 1  -> TQ = 250 ns // bit rate  running is 500kbits
+	mcp2515_write(MCP_CNF2, 0x8A);  // BTLMODE=1, SAM=0, PS1 = 2 TQ, PropSeg = 3 TQ
+	mcp2515_write(MCP_CNF3, 0x01);  // PS2 = 2 TQ
 
 	
 	// Interrupts (Register 7-1, p.52): pull INT low when a message lands in RXB0.
 	// Clear old flags first so INT starts released (high).
 	mcp2515_write(MCP_CANINTF, 0x00);
 	mcp2515_write(MCP_CANINTE, MCP_RX0I);
+	mcp2515_write(MCP_RXB0CTRL, MCP_RXM_ANY);
+	mcp2515_write(MCP_RXB1CTRL, MCP_RXM_ANY);
 	
 	// Request the operating mode (REQOP = upper 3 bits of CANCTRL)
 	mcp2515_bit_modify(MCP_CANCTRL, MCP_MODE_MASK, mode);
