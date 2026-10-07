@@ -42,7 +42,20 @@ void can_init(CanInit init, uint8_t rxInterrupt){
 	// here the DIV for us is 0 which is 84Mhz
     // DIV = 0 (can clk = MCK), CMD = 1 (write), PID = 2B (CAN0)
     PMC->PMC_PCR = PMC_PCR_EN | (0 << PMC_PCR_DIV_Pos) | PMC_PCR_CMD | (ID_CAN0 << PMC_PCR_PID_Pos); 
-    PMC->PMC_PCER1 |= 1 << (ID_CAN0 - 32);
+    PMC->PMC_PCER1 = 1 << (ID_CAN0 - 32);
+	
+/************************************************************************/
+/* 
+|= is questionable use, because these registers are write-only / command registers. So these are changed:
+ PMC->PMC_PCER1 |= 1 << (ID_CAN0 - 32);
+ CAN0->CAN_MB[rxMailbox].CAN_MCR |= CAN_MCR_MTCR; //Change applied in can_rx(). But in can_init(), this was removed:
+	According to the SAM3X datasheet, once MOT is configured for Receive Mode, MRDY is automatically cleared and the mailbox waits for its first accepted message.
+	So MTCR transfer command does not need to be used just to start receiving, because it is already ready. 
+	BUT this situation is can_init() unique. The opposite is true for can_rx(), because there you want to be ready for the NEXT message that can arrive,
+		and CAN0->CAN_MB[rxMailbox].CAN_MMR = CAN_MMR_MOT_MB_RX; is not needed over there, because once RX is configured as RX, it will stay as an RX mailbox, no matter the message arrived.
+ CAN0->CAN_IER |= (1 << rxMailbox); 
+*/
+/************************************************************************/
     
     //Set baudrate, Phase1, phase2 and propagation delay for can bus. Must match on all nodes!
     CAN0->CAN_BR = init.reg; 
@@ -58,10 +71,9 @@ void can_init(CanInit init, uint8_t rxInterrupt){
     CAN0->CAN_MB[rxMailbox].CAN_MAM = 0; // Accept all messages
     CAN0->CAN_MB[rxMailbox].CAN_MID = 0;					//CAN_MID_MIDE; same as above
     CAN0->CAN_MB[rxMailbox].CAN_MMR = CAN_MMR_MOT_MB_RX;
-    CAN0->CAN_MB[rxMailbox].CAN_MCR |= CAN_MCR_MTCR;
     if(rxInterrupt){
         // Enable interrupt on receive
-        CAN0->CAN_IER |= (1 << rxMailbox); 
+        CAN0->CAN_IER = (1 << rxMailbox); 
         // Enable interrupt in NVIC 
         NVIC_EnableIRQ(ID_CAN0);
     }
@@ -92,7 +104,6 @@ uint8_t can_rx(CanMsg* m){
     if(!(CAN0->CAN_MB[rxMailbox].CAN_MSR & CAN_MSR_MRDY)){
         return 0;
     }
-	printf("can_rx entered");
     // Get message ID
     m->id = (uint16_t)((CAN0->CAN_MB[rxMailbox].CAN_MID & CAN_MID_MIDvA_Msk) >> CAN_MID_MIDvA_Pos);
         
@@ -104,8 +115,15 @@ uint8_t can_rx(CanMsg* m){
     m->dword[1] = CAN0->CAN_MB[rxMailbox].CAN_MDH;
                 
     // Reset for new receive
-    CAN0->CAN_MB[rxMailbox].CAN_MMR = CAN_MMR_MOT_MB_RX;
-    CAN0->CAN_MB[rxMailbox].CAN_MCR |= CAN_MCR_MTCR;
+    CAN0->CAN_MB[rxMailbox].CAN_MCR = CAN_MCR_MTCR;
+
+/************************************************************************/
+/* 
+Check out the previous comment box on why 
+	CAN0->CAN_MB[rxMailbox].CAN_MMR = CAN_MMR_MOT_MB_RX;
+was removed.
+*/
+/************************************************************************/
     return 1;
 }
     

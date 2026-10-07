@@ -9,6 +9,9 @@
 
 #include <stdint.h>
 
+// Giving joystick traffic its own CAN ID. 
+#define CAN_ID_JOYSTICK 0x100
+
 // Valid input bits returned by the User-I/O board firmware.
 #define IO_RIGHT_BUTTON_MASK 0x3F
 #define IO_LEFT_BUTTON_MASK  0x7F

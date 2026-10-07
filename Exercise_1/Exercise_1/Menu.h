@@ -8,6 +8,7 @@
 #define MENU_H_
 
 #include <stdint.h>
+#include "Io.h"
 
 #define MENU_MAX_ITEMS 8
 
@@ -31,7 +32,9 @@ typedef struct menu {
 	struct menu *submenus[MENU_MAX_ITEMS];   // NULL = leaf item
 } menu_t;
 
-nav_event_t nav_read(void);
-int8_t menu_run(menu_t *root);
+
+nav_event_t nav_from_joystick(io_joystick_t joystick);
+void menu_init(menu_t *root);
+void menu_update(nav_event_t event, io_buttons_t buttons);
 
 #endif //MENU_H_

@@ -158,14 +158,11 @@ void oled_init(void)
 }
 
 
-void oled_clear(void)
-{
-	for (uint8_t page = 0; page < 8; page++) 
-	{
+void oled_clear(void){
+	for (uint8_t page = 0; page < 8; page++) {
 		oled_goto_page(page);
 		oled_goto_column(0);
-		for (uint8_t col = 0; col < 128; col++) 
-		{
+		for (uint8_t col = 0; col < 128; col++) {
 			oled_data(0x00);
 		}
 	}

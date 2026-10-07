@@ -9,8 +9,7 @@
 #include "usart.h"
 #include <util/delay.h>
 
-io_joystick_t io_read_joystick(void)
-{
+io_joystick_t io_read_joystick(void){
 	io_joystick_t result;
 
 	spi_select_slave(SPI_SLAVE_IO);
@@ -101,8 +100,7 @@ void io_led_set(uint8_t led_n, uint8_t on)
  * bank actually changes. This keeps button polling responsive and avoids six
  * redundant LED commands on every pass through the menu loop.
  */
-void io_led_groups_update(uint8_t left_active, uint8_t right_active)
-{
+void io_led_groups_update(uint8_t left_active, uint8_t right_active){
 	static uint8_t previous_state = 0xFF;
 	uint8_t state = (left_active ? 0x01 : 0x00)
 	| (right_active ? 0x02 : 0x00);

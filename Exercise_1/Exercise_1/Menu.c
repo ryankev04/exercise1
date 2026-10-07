@@ -7,7 +7,7 @@
 
 #include "Menu.h"
 #include "Io.h"
-#include "Oled.h"
+#include "oled.h"
 #include "usart.h"
 #include <stdlib.h>
 #include <util/delay.h>
@@ -45,10 +45,9 @@ static menu_t empty_menu = {
 	.submenus = { MENU_BACK }
 };
 
+
 // Convert the large analogue joystick reading into one menu event.
-nav_event_t nav_read(void)
-{
-	io_joystick_t j = io_read_joystick();
+nav_event_t nav_from_joystick(io_joystick_t j){
 
 // Button takes priority -- if it's pressed, report CLICK straight
 // away and don't even look at direction.
@@ -212,169 +211,116 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 }
 
 
-
-
-
-/*
-* menu_run(): the menu's main loop. Runs every ~20 ms and, each pass:
-*
-*   1. Reads the joystick event and the I/O-board buttons.
-*   2. Updates the two LED groups .
-*   3. Handles input in ONE of three modes, checked in this order:
-*        a) An action is ARMED (waiting)   -> wait for release / SR6 / blink
-*        b) Just CANCELLED (wait_for_neutral) -> ignore stick until centred
-*        c) NORMAL navigation              -> UP/DOWN/LEFT/RIGHT/CLICK
-*      Modes a) and b) end with "continue", so only one mode runs per pass.
-*
-* NOTE: this loop never exits -- there is no "return" inside while(1).
-* So the int8_t return value is never produced, and in main.c the code
-* after menu_run() (printf("Selected..."), the LED while loop) is never
-* reached. If you later want e.g. "Start Game" to leave the menu, add a
-* sentinel for it and "return" the selected index from here.
-*/
-int8_t menu_run(menu_t *root)
-{
-	menu_t *stack[MENU_STACK_DEPTH];
-	uint8_t selected_stack[MENU_STACK_DEPTH];  // which item is highlighted, per menu level
-	uint8_t depth = 0;   
-
+static menu_t *stack[MENU_STACK_DEPTH];
+static uint8_t selected_stack[MENU_STACK_DEPTH];  // which item is highlighted, per menu level
+static uint8_t depth;
+static nav_event_t last_event = NAV_NEUTRAL;
+static pending_action_t pending = PENDING_NONE; // is a LEFT/RIGHT action armed
+static uint8_t blink_ticks = 0; // counts loop passes between blink toggles
+static uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
+static uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
+void menu_init(menu_t *root){
+	depth = 0;
 	stack[0] = root;
 	selected_stack[0] = 0;
-	menu_draw(stack[0], 0);  // show the menu before waiting for any input
-
-	nav_event_t last_event = NAV_NEUTRAL;
-	pending_action_t pending = PENDING_NONE; // is a LEFT/RIGHT action armed
-	uint8_t blink_ticks = 0; // counts loop passes between blink toggles
-	uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
-	uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
-
-	while (1) {
-		nav_event_t event = nav_read();
-		io_buttons_t buttons = io_read_buttons();
-		uint8_t sr6_pressed = (buttons.right & SR6_CANCEL_MASK) != 0;
-		
-		/*
-		 * The large analogue joystick is physically on the SL side, so any
-		 * direction/click joins the SL buttons and drives LED1..LED3.
-		 * The small 5-way switch is physically on the SR side, so it joins
-		 * the SR buttons and drives LED4..LED6.
-		 *
-		 * These I/O-board transactions finish before an OLED redraw begins;
-		 * the SPI driver guarantees that only one chip select is low.
-		 */
-		uint8_t left_active = ((buttons.left & IO_LEFT_BUTTON_MASK) != 0) || (event != NAV_NEUTRAL);
-		uint8_t right_active = ((buttons.right & IO_RIGHT_BUTTON_MASK) != 0) || ((buttons.nav & IO_NAV_BUTTON_MASK) != 0);
-		io_led_groups_update(left_active, right_active);
-		
-				// selected is a POINTER into selected_stack[], so writing *selected
-				// updates the stored selection for this level directly.
-		menu_t *current = stack[depth];
-		uint8_t *selected = &selected_stack[depth];
-		
-		/*
-		 * A horizontal action has been armed. SR6 has priority over release,
-		 * so pressing SR6 at the same moment as releasing still cancels.
-		 */
-		if (pending != PENDING_NONE) {
-			if (sr6_pressed) {
-				
-			// Cancel: forget the armed action and restore the normal screen.
-			// The stick is probably still held sideways, so wait for it to
-			// be centred before accepting new input
+	last_event = NAV_NEUTRAL;
+	pending = PENDING_NONE;
+	blink_ticks = 0;
+	blink_visible = 1;
+	wait_for_neutral = 0;
+	menu_draw(root, 0); // show the menu before waiting for any input
+}
+	
+void menu_update(nav_event_t event, io_buttons_t buttons){
+	uint8_t sr6_pressed = (buttons.right & SR6_CANCEL_MASK) != 0;
+	menu_t *current = stack[depth];
+	uint8_t *selected = &selected_stack[depth];
+	if (pending != PENDING_NONE) {
+		if (sr6_pressed) {
+		// Cancel: forget the armed action and restore the normal screen.
+		// The stick is probably still held sideways, so wait for it to
+		// be centred before accepting new input
+			pending = PENDING_NONE;
+			wait_for_neutral = 1;
+			menu_draw(current, *selected);
+		}
+		else {
+			// "Released" = the stick is no longer pushed in the armed
+			// direction. (It counts as released as soon as it leaves that
+			// direction -- back to neutral, or even moved up/down.)
+			uint8_t released = (pending == PENDING_BACK && event != NAV_LEFT) || (pending == PENDING_SELECT && event != NAV_RIGHT);
+			if (released) {
+				pending_action_t action = pending;
 				pending = PENDING_NONE;
-				wait_for_neutral = 1;
-				menu_draw(current, *selected);
-			}
-			else {
-				
-				// "Released" = the stick is no longer pushed in the armed
-				// direction. (It counts as released as soon as it leaves that
-				// direction -- back to neutral, or even moved up/down.)
-				uint8_t released =
-				(pending == PENDING_BACK   && event != NAV_LEFT)
-				|| (pending == PENDING_SELECT && event != NAV_RIGHT);
 
-				if (released) {
-					pending_action_t action = pending;
-					pending = PENDING_NONE;
-
-					if (action == PENDING_BACK) {
-						menu_go_back(stack, selected_stack, &depth);
-					}
-					else {
-						menu_open_selected(stack, selected_stack, &depth);
-					}
+				if (action == PENDING_BACK) {
+					menu_go_back(stack, selected_stack, &depth);
 				}
 				else {
-					blink_ticks++;
-					if (blink_ticks >= BLINK_PERIOD_TICKS) {
-						blink_ticks = 0;
-						blink_visible = !blink_visible;
-						menu_draw_marker(*selected,
-						blink_visible
-						? (pending == PENDING_BACK ? '<' : '>')
-						: ' ');
-					}
+					menu_open_selected(stack, selected_stack, &depth);
 				}
 			}
-
-			last_event = event;
-			_delay_ms(20);
-			continue;
-		}
-		
-		/*
-		 * After SR6 cancellation, ignore every joystick direction until the
-		 * stick reaches neutral. This prevents the held direction from arming
-		 * the same action again on the next loop iteration.
-		 */ 
-		if (wait_for_neutral) {
-			if (event == NAV_NEUTRAL) {
-				wait_for_neutral = 0;
+			else {
+				blink_ticks++;
+				if (blink_ticks >= BLINK_PERIOD_TICKS) {
+					blink_ticks = 0;
+					blink_visible = !blink_visible;
+					menu_draw_marker(*selected, blink_visible ? (pending == PENDING_BACK ? '<' : '>') : ' ');
+				}
 			}
-			last_event = event;
-			_delay_ms(20);
-			continue;
 		}
+
+		last_event = event;
+		return;
+	}
 		
-		// Up/down/click remain edge-triggered, as in the original menu.
-		if (event != NAV_NEUTRAL && event == last_event) {
-			_delay_ms(20);
-			continue;
+	/*
+	* After SR6 cancellation, ignore every joystick direction until the
+	* stick reaches neutral. This prevents the held direction from arming
+	* the same action again on the next loop iteration.
+	*/ 
+	if (wait_for_neutral) {
+		if (event == NAV_NEUTRAL) {
+			wait_for_neutral = 0;
 		}
 		last_event = event;
-
-		if (event == NAV_UP) {
-			if (*selected == 0) *selected = current->item_count - 1;
-			else (*selected)--;
-			menu_draw(current, *selected);
-		}
-		else if (event == NAV_DOWN) {
-			(*selected)++;
-			if (*selected >= current->item_count) {
-				*selected = 0;
-			}
-			menu_draw(current, *selected);
-		}
-		else if (event == NAV_LEFT && depth > 0) {
-			pending = PENDING_BACK;
-			blink_ticks = 0;
-			blink_visible = 1;
-			menu_draw_marker(*selected, '<');
-			menu_draw_help(pending);
-		}
-		else if (event == NAV_RIGHT) {
-			pending = PENDING_SELECT;
-			blink_ticks = 0;
-			blink_visible = 1;
-			menu_draw_marker(*selected, '>');
-			menu_draw_help(pending);
-		}
-		else if (event == NAV_CLICK) {
-			// The joystick push-button remains an immediate selection shortcut.
-			menu_open_selected(stack, selected_stack, &depth);
-		}
+		return;
+	}
 		
-		_delay_ms(20); // small pause between reads, so it doesn't run too fast
+	// Up/down/click remain edge-triggered, as in the original menu.
+	if (event != NAV_NEUTRAL && event == last_event) {
+		return;
+	}
+	last_event = event;
+
+	if (event == NAV_UP) {
+		if (*selected == 0) *selected = current->item_count - 1;
+		else (*selected)--;
+		menu_draw(current, *selected);
+	}
+	else if (event == NAV_DOWN) {
+		(*selected)++;
+		if (*selected >= current->item_count) {
+			*selected = 0;
+		}
+		menu_draw(current, *selected);
+	}
+	else if (event == NAV_LEFT && depth > 0) {
+		pending = PENDING_BACK;
+		blink_ticks = 0;
+		blink_visible = 1;
+		menu_draw_marker(*selected, '<');
+		menu_draw_help(pending);
+	}
+	else if (event == NAV_RIGHT) {
+		pending = PENDING_SELECT;
+		blink_ticks = 0;
+		blink_visible = 1;
+		menu_draw_marker(*selected, '>');
+		menu_draw_help(pending);
+	}
+	else if (event == NAV_CLICK) {
+		// The joystick push-button remains an immediate selection shortcut.
+		menu_open_selected(stack, selected_stack, &depth);
 	}
 }

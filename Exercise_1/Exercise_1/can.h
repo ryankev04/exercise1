@@ -14,6 +14,7 @@
 #define CAN_H_
  
 #include <stdint.h>
+#include "Menu.h"
  
 /*
 * One CAN message (standard data frame, datasheet section 2.1, p.7):
@@ -40,13 +41,15 @@ typedef struct {
 	union {
 		uint8_t data[8];        // raw bytes
 		int32_t positions[2];   // same 8 bytes as two 32-bit numbers
-	};
+	}; //union does this: if msg.data[0] = 1, ...[1] = 0, ...[2] = 0, ...[3] = 0, msg.positions[0] = 0x00000001. 
 } can_message_t;
  
 uint8_t can_send(const can_message_t *msg);
+uint8_t can_send_joystick(uint8_t x, uint8_t y, uint8_t button, nav_event_t nav);
 uint8_t can_receive(can_message_t *msg);   // returns 1 if a message was read, 0 if none
 //void can_loopback_test(void);
 void can_test(void);
 uint8_t can_wait_receive(can_message_t *msg, uint8_t timeout_ms);
+
  
 #endif //CAN_H_

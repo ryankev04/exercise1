@@ -5,6 +5,8 @@
 
 #include <stdint.h>
 
+#define CAN_ID_JOYSTICK 0x100
+
 // Struct with bit timing information
 // See `can_init` for usage example
 typedef struct CanInit CanInit;
