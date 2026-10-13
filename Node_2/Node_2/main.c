@@ -11,6 +11,7 @@
 #include "uart.h"
 #include "can.h"
 #include "menu.h"
+#include "pwm.h"
 
 
 
@@ -29,6 +30,9 @@ int main(void)
 	CanInit init = { .reg = CAN_BR_BRP(20) | CAN_BR_SJW(0) |CAN_BR_PROPAG(2) | CAN_BR_PHASE1(1) | CAN_BR_PHASE2(1) };
 	can_init(init, 0);
 	printf("CAN_BR = 0x%08lX\n\r", (unsigned long)CAN0->CAN_BR);
+	
+		servo_init();
+		printf("Servo: CPRD=%u  min=%u  centre=%u  max=%u\n\r",SERVO_CPRD, SERVO_CDTY_MIN, SERVO_CDTY_CENTER, SERVO_CDTY_MAX);
     /* Replace with your application code */
 	static uint8_t counting_loop = 0;
 	while (1) {
@@ -39,9 +43,11 @@ int main(void)
 				uint8_t y = m.byte[1];
 				uint8_t button = m.byte[2];
 				nav_event_t joystick_nav = m.byte[3];
-
+				
+				servo_set_from_joystick(x);
+				
 				if (counting_loop >= 10) {
-					printf("Joystick: X=%u Y=%u BTN: %u, NAV: %u\n\r", x, y, button, joystick_nav); 
+					printf("Joystick: X=%u (filtered %u) Y=%u BTN: %u, NAV: %u  -> CDTY=%lu\n\r",x, servo_get_filtered_x(), y, button, joystick_nav,(unsigned long)servo_get_cdty());
 					counting_loop = 0;
 				}
 				else counting_loop++;
