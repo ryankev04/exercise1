@@ -82,50 +82,6 @@ void servo_set_cdty(uint32_t cdty)
     PWM->PWM_CH_NUM[1].PWM_CDTYUPD = cdty;
 }
  
-
- 
- #define JOY_DEADBAND  6       /* |x - centre| <= 6 is treated as centre */
-
-static uint8_t last_filtered_x = JOY_CENTER;
-
-/* Median of three: the middle value of a, b, c.
- * One wrong reading (a spike) is always the highest or lowest of the
- * three, so it never gets through. */
-static uint8_t median3(uint8_t a, uint8_t b, uint8_t c)
-{
-    if (a > b) { uint8_t t = a; a = b; b = t; }   /* now a <= b */
-    if (b > c) { b = c; }                          /* b = min(b, c) */
-    if (a > b) { b = a; }                          /* b = max(a, b) */
-    return b;
-}
-
-static uint8_t joystick_filter(uint8_t x)
-{
-    static uint8_t h1 = JOY_CENTER, h2 = JOY_CENTER;   /* two previous readings */
-
-    /* 1. Remove single spikes */
-    uint8_t m = median3(x, h1, h2);
-    h2 = h1;
-    h1 = x;
-
-    /* 2. Dead band: small wobble around the centre -> exactly centre */
-    int16_t d = (int16_t)m - JOY_CENTER;
-    if (d >= -JOY_DEADBAND && d <= JOY_DEADBAND) {
-        m = JOY_CENTER;
-    }
-    return m;
-}
-
-
-uint8_t servo_get_filtered_x(void)
-{
-	return last_filtered_x;
-}
-
- 
- 
-
- 
  
 
 // Step 3: joystick X (0..255) -> CDTY (2363..5512) 
@@ -133,7 +89,7 @@ uint8_t servo_get_filtered_x(void)
 void servo_set_from_joystick(uint8_t x)
 {
     int32_t cdty;
-	x = joystick_filter(x);
+	
 	
     if (x >= JOY_CENTER) {
         /* Right half: x = 126 .. 255  ->  cdty = 3937 .. 5512

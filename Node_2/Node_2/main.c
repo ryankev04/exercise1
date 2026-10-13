@@ -45,9 +45,9 @@ int main(void)
 				nav_event_t joystick_nav = m.byte[3];
 				
 				servo_set_from_joystick(x);
-				
+
 				if (counting_loop >= 10) {
-					printf("Joystick: X=%u (filtered %u) Y=%u BTN: %u, NAV: %u  -> CDTY=%lu\n\r",x, servo_get_filtered_x(), y, button, joystick_nav,(unsigned long)servo_get_cdty());
+					printf("Joystick: X=%u  Y=%u BTN: %u, NAV: %u  -> CDTY=%lu\n\r",x, y, button, joystick_nav,(unsigned long)servo_get_cdty());
 					counting_loop = 0;
 				}
 				else counting_loop++;

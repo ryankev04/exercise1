@@ -19,7 +19,6 @@ void servo_init(void);
 void servo_set_cdty(uint32_t cdty);        
 void servo_set_from_joystick(uint8_t x);  
 uint32_t servo_get_cdty(void);
-/* Joystick X after the noise filter, for printing/debugging */
-uint8_t servo_get_filtered_x(void);
+
 
 #endif  //PWM_H_
