@@ -21,11 +21,16 @@ void adc_init(void)
     // Enable channel 7 = A0 = PA16  (Table 43-3 page 1320, ADC_CHER page 1338) 
     ADC->ADC_CHER = (1u << ADC_IR_CHANNEL);
 
-    // 5. Start 
+    //  Start conversion (page 1332) this si done in adc_read() so we can read the first value immediately
     ADC->ADC_CR = ADC_CR_START;
 }
 
 uint16_t adc_read(uint8_t channel)
 {
+    // the ADC is in free-running mode, so it is always converting.
+    // We just need to read the latest value from the channel we want. 
+    //The result is 12 bits (0..4095) in the lower 12 bits of the CDR register for that channel. 
+    //The upper bits are reserved and should be ignored.
+    //CDR = Channel Data Register (page 1351)
     return (uint16_t)(ADC->ADC_CDR[channel] & 0x0FFF);   /* 0..4095 = 0..3.3 V (page 1351) */
 }

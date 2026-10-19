@@ -1,0 +1,3 @@
+{
+    "mplab.clangd.compileCommandsDir": "${workspaceFolder}\\_build\\USART\\Release"
+}
