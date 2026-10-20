@@ -4,6 +4,8 @@
  * Created: 13.10.2026 14:49:33
  *  Author: ngabo
  */ 
+#include "sam.h"
+#include "adc.h"
 
 void adc_init(void)
 {

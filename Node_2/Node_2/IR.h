@@ -17,8 +17,12 @@
 #define IR_H_
  
 #include <stdint.h>
- 
 
+uint8_t IR_is_blocked(void);
+void IR_update(void);
+uint8_t IR_goal_happened(void);
+uint16_t IR_get_score(void);
+void IR_test(void);
  
 #endif /* IR_H_ */
  

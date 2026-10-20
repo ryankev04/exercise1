@@ -82,26 +82,39 @@ void servo_set_cdty(uint32_t cdty)
     PWM->PWM_CH_NUM[1].PWM_CDTYUPD = cdty;
 }
  
- 
+ #define JOY_DEADBAND  8
+
 
 // Step 3: joystick X (0..255) -> CDTY (2363..5512) 
 
 void servo_set_from_joystick(uint8_t x)
 {
+	/* ---- Low-pass filter ---------------------------------------- */
+	static int16_t x_filtered = JOY_CENTER;          // (1)
+
+	x_filtered = x_filtered + ((int16_t)x - x_filtered) / 4;   // (2)
+
+	/* ---- Dead band around the centre ---------------------------- */
+	int16_t x_use = x_filtered;                      // (3)
+	if (x_use > JOY_CENTER - JOY_DEADBAND &&
+	x_use < JOY_CENTER + JOY_DEADBAND) {         // (4)
+		x_use = JOY_CENTER;
+	}
+
     int32_t cdty;
 	
 	
-    if (x >= JOY_CENTER) {
+    if (x  >= JOY_CENTER) {
         /* Right half: x = 126 .. 255  ->  cdty = 3937 .. 5512
          * Straight line through (126, 3937) and (255, 5512):
          *   cdty = 3937 + (x - 126) * (5512 - 3937) / (255 - 126)
          *        = 3937 + (x - 126) * 1575 / 129                     */
-        cdty = SERVO_CDTY_CENTER  + ((int32_t)x - JOY_CENTER) * (SERVO_CDTY_MAX - SERVO_CDTY_CENTER)/ (JOY_MAX - JOY_CENTER);
+        cdty = SERVO_CDTY_CENTER  + ((int32_t)x_use  - JOY_CENTER) * (SERVO_CDTY_MAX - SERVO_CDTY_CENTER)/ (JOY_MAX - JOY_CENTER);
     } else {
         /* Left half: x = 0 .. 126  ->  cdty = 2363 .. 3937
          *   cdty = 3937 - (126 - x) * (3937 - 2363) / (126 - 0)
          *        = 3937 - (126 - x) * 1574 / 126                     */
-        cdty = SERVO_CDTY_CENTER - (JOY_CENTER - (int32_t)x) * (SERVO_CDTY_CENTER - SERVO_CDTY_MIN)  / (JOY_CENTER - JOY_MIN);
+        cdty = SERVO_CDTY_CENTER - (JOY_CENTER - (int32_t)x_use) * (SERVO_CDTY_CENTER - SERVO_CDTY_MIN)  / (JOY_CENTER - JOY_MIN);
     }
  
     servo_set_cdty((uint32_t)cdty);   /* limits are applied in here */

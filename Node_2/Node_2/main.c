@@ -12,6 +12,9 @@
 #include "can.h"
 #include "menu.h"
 #include "pwm.h"
+#include "IR.h"
+#include "adc.h"
+
 
 
 
@@ -33,6 +36,10 @@ int main(void)
 	
 		servo_init();
 		printf("Servo: CPRD=%u  min=%u  centre=%u  max=%u\n\r",SERVO_CPRD, SERVO_CDTY_MIN, SERVO_CDTY_CENTER, SERVO_CDTY_MAX);
+		
+		// starting the ADC 
+		adc_init();
+		timer_init();
     /* Replace with your application code */
 	static uint8_t counting_loop = 0;
 	while (1) {
@@ -45,13 +52,22 @@ int main(void)
 				nav_event_t joystick_nav = m.byte[3];
 				
 				servo_set_from_joystick(x);
+				
 
 				if (counting_loop >= 10) {
-					printf("Joystick: X=%u  Y=%u BTN: %u, NAV: %u  -> CDTY=%lu\n\r",x, y, button, joystick_nav,(unsigned long)servo_get_cdty());
+					//printf("Joystick: X=%u  Y=%u BTN: %u, NAV: %u  -> CDTY=%lu\n\r",x, y, button, joystick_nav,(unsigned long)servo_get_cdty());
+					//IR_test();
+					//IR_count_goal();
+				if (IR_goal_happened())
+				 {
+					 printf("GOAL!  score = %u\r\n", IR_get_score());
+				}
 					counting_loop = 0;
 				}
 				else counting_loop++;
 			}
 		}
+		
+	
 	}
 }

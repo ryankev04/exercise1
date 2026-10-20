@@ -49,12 +49,15 @@ void timer_init(void)
      */
     // TC_CMR = Timer Counter Mode Register (page 883)
     // TC_CMR = 0x00000050 = 0b00000000 00000000 00000000 01010000
-    // 0x50 = 0b01010000 = 0x40 (WAVE) + 0x10 (WAVSEL_UP_RC)
+    // WAVE         = bit 15        = 0x8000
+    // WAVSEL_UP_RC = 0b10 << 13    = 0x4000
+    // TIMER_CLOCK1 = 0b000         = 0x0000
+    // TC_CMR       = 0x0000C000
     
     TC0->TC_CHANNEL[0].TC_CMR = TC_CMR_TCCLKS_TIMER_CLOCK1| TC_CMR_WAVE | TC_CMR_WAVSEL_UP_RC;
  
     // Count to 42 000 -> one period = 1 ms 
-    // TC_RC = Timer Counter Register C (page 891)
+    // TC_IER = 0x10 = bit 4 = CPCS 
     
     TC0->TC_CHANNEL[0].TC_RC = 42000;
  
@@ -89,7 +92,7 @@ void TC0_Handler(void)
     // TC_SR = Timer Counter Status Register (page 892)
     if (status & TC_SR_CPCS) {
         millis++;
-       // ir_update();          /* read and filter the IR sensor */
+       IR_update();          /* read and filter the IR sensor */
     }
 }
 
