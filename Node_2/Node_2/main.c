@@ -42,6 +42,7 @@ int main(void)
 		// starting the ADC 
 		adc_init();
 		timer_init();
+		encoder_init();
     /* Replace with your application code */
 	static uint8_t counting_loop = 0;
 	while (1) {
@@ -55,25 +56,24 @@ int main(void)
 				
 				motor_set_from_joystick(x); //motor
 				servo_set_from_joystick(y); // servo
-				
-				
-				
-				
+
 
 				if (counting_loop >= 10) {
-					//printf("Joystick: X=%u  Y=%u BTN: %u, NAV: %u  -> CDTY=%lu\n\r",x, y, button, joystick_nav,(unsigned long)servo_get_cdty());
-					//IR_test();
+                    printf("X=%u Y=%u BTN=%u NAV=%u  enc=%ld  CDTY=%lu\r\n", x, y, button, joystick_nav, (long)encoder_read(),(unsigned long)servo_get_cdty());
 					//IR_count_goal();
-				if (IR_goal_happened())
-				 {
-					 printf("GOAL!  score = %u\r\n", IR_get_score());
-				}
+
 					counting_loop = 0;
 				}
-				else counting_loop++;
+				else
+				{ 
+					counting_loop++;
+				}
 			}
 		}
-		
+						if (IR_goal_happened())
+						{
+							printf("GOAL!  score = %u\r\n", IR_get_score());
+						}
 	
 	}
 }
