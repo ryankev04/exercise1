@@ -7,8 +7,9 @@
 
 #ifndef ENCODER_H_
 #define ENCODER_H_
+#include <stdint.h>
 
-
-
+void encoder_init (void);
+int32_t encoder_read(void);
 
 #endif //ENCODER_H_

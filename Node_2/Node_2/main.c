@@ -51,7 +51,10 @@ int main(void)
 				uint8_t button = m.byte[2];
 				nav_event_t joystick_nav = m.byte[3];
 				
-				servo_set_from_joystick(x);
+				servo_set_from_joystick(x); // servo
+				// here we need joystick for motor and it will be at x and servo which is above will be at y
+				
+				
 				
 
 				if (counting_loop >= 10) {

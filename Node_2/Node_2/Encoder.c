@@ -83,7 +83,19 @@
 	 TC2->TC_CHANNEL[0].TC_CCR = TC_CCR_CLKEN | TC_CCR_SWTRG;
  }
 
-int32_t encoder_read (void)
+int32_t encoder_read(void)
 {
-
+	 /* TC_CV = Counter Value register (page 888), the current position.
+     * The hardware counts up when the motor turns one way and down when
+     * it turns the other way.
+     *
+     * The register is a 32-bit UNSIGNED number. If the carriage moves to
+     * the "negative" side of the start position, the counter goes
+     * 0 -> 4294967295 -> 4294967294 ... (it wraps around).
+     * Casting to int32_t (signed) makes that show up as -1, -2 ...,
+     * which is much easier to use in the controller.              
+	  */
+	uint32_t raw = TC2->TC_CHANNEL[0].TC_CV;   // read the register (unsigned)
+	int32_t  position = (int32_t)raw;          // interpret it as signed
+	return position;                           // give it back
 }
