@@ -27,7 +27,7 @@
      * Each pin can be a normal I/O pin (PIO) or belong to a peripheral.
      * TIOA6/TIOB6 are "peripheral B" on these pins (Table 36-4).
      *
-     * PIO_ABSR: bit = 0 -> peripheral A, bit = 1 -> peripheral B.
+     * PIO_ABSR (AB Select Register): bit = 0 -> peripheral A, bit = 1 -> peripheral B.
      *   It is a READ-WRITE register that holds the setting for all 32
      *   pins of port C, so we use "|=" to set only our two bits and
      *   leave the other pins as they were.

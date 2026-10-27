@@ -13,8 +13,7 @@
 #define MOTOR_CPRD 4200   // 84 MHz / 4200 = 20 kHz
 #define MOTOR_DEADBAND  10
 #define MOTOR_MAX       (MOTOR_CPRD / 4)   // 25 % for the first test
-void motor_init (void)
-{
+void motor_init (void) {
 	/* NOTE: the PWM clock (PMC_PCER1, ID_PWM) is turned on in servo_init()
      * in pwm.c. servo_init() MUST be called before motor_init(),
      * otherwise the PWM registers below are not written and the motor

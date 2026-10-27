@@ -35,14 +35,14 @@ int main(void)
 	can_init(init, 0);
 	printf("CAN_BR = 0x%08lX\n\r", (unsigned long)CAN0->CAN_BR);
 	
-		servo_init();
-		printf("Servo: CPRD=%u  min=%u  centre=%u  max=%u\n\r",SERVO_CPRD, SERVO_CDTY_MIN, SERVO_CDTY_CENTER, SERVO_CDTY_MAX);
-		motor_init();
+	servo_init();
+	printf("Servo: CPRD=%u  min=%u  centre=%u  max=%u\n\r",SERVO_CPRD, SERVO_CDTY_MIN, SERVO_CDTY_CENTER, SERVO_CDTY_MAX);
+	motor_init();
 		
-		// starting the ADC 
-		adc_init();
-		timer_init();
-		encoder_init();
+	// starting the ADC 
+	adc_init();
+	timer_init();
+	encoder_init();
     /* Replace with your application code */
 	static uint8_t counting_loop = 0;
 	while (1) {
@@ -55,7 +55,7 @@ int main(void)
 				nav_event_t joystick_nav = m.byte[3];
 				
 				motor_set_from_joystick(x); //motor
-				servo_set_from_joystick(y); // servo
+				servo_set_from_joystick(y); //servo
 
 
 				if (counting_loop >= 10) {
