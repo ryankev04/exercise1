@@ -31,6 +31,7 @@ io_joystick_t io_read_joystick(void){
 
 	return result;
 }
+
 /*
 * io_read_buttons(): reads the tactile switches + 5-way nav stick,
 * command 0x04, per the IO board doc's own table:

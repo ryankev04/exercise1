@@ -12,7 +12,7 @@
 #define JOY_MAX_DIFF     75              
 #define MOTOR_CPRD 4200   // 84 MHz / 4200 = 20 kHz
 #define MOTOR_DEADBAND  10
-#define MOTOR_MAX       (MOTOR_CPRD / 2)   // 50 %
+#define MOTOR_MAX       (MOTOR_CPRD / 3)   // 50 %
 void motor_init (void) {
 	PMC->PMC_PCER1 = (1u << (ID_PWM - 32));
 	/* NOTE: the PWM clock (PMC_PCER1, ID_PWM) is turned on in servo_init()
@@ -128,4 +128,22 @@ void motor_set_from_joystick(uint8_t x)
 	uint32_t duty = (uint32_t)diff * MOTOR_MAX / JOY_MAX_DIFF;   //  distance -> speed
 
 	motor_set(dir, duty);                      //  send to the hardware
+}
+
+/* Call this FIRST in main(), before everything else.
+ 
+After reset all pull-ups are ON (datasheet 31.5.1, page 622), so ENABLE (PB12)
+floats HIGH = motor at full power until motor_init() runs. This drives PB12
+LOW right away. No PIO clock is needed to drive an output.                  */
+void motor_safe_off(void)
+{
+    PIOB->PIO_PUDR = PIO_PB12;    // pull-up OFF (PIO_PUDR, page 653)
+    PIOB->PIO_CODR = PIO_PB12;    // output value = 0 ...
+    PIOB->PIO_OER  = PIO_PB12;    // ... THEN make it an output (so it is never 1)
+    PIOB->PIO_PER  = PIO_PB12;    // PIO controls the pin (until motor_init gives it to the PWM)
+
+    PIOC->PIO_PUDR = PIO_PC23;    // same for PHASE: pull-up off, output 0
+    PIOC->PIO_CODR = PIO_PC23;
+    PIOC->PIO_OER  = PIO_PC23;
+    PIOC->PIO_PER  = PIO_PC23;
 }

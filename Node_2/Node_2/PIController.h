@@ -12,7 +12,7 @@
 #include <stdint.h>
 
 #define CONTROL_PERIOD_MS 10u
-#define CONTROL_MAX_DUTY 2100 // 4200 / 2: 50% cap. This is the maximum permitted motor effort in PWM counts. 
+#define CONTROL_MAX_DUTY 1400 // 4200 / 3: 50% cap. This is the maximum permitted motor effort in PWM counts. 
 								//So if this value were to be increased, it can increase speed if the PI controller requests it. 
 							
 

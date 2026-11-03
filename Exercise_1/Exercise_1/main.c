@@ -43,7 +43,7 @@ int main(void)
 	FILE *uart_stream = fdevopen(uart_putchar, uart_getchar);   // save the pointer!
 	stdout = uart_stream;
 
-	printf("Hello 2 from ATmega162!\n");   // -> RS232
+	printf("Exercise 8 from ATmega162!\n");   // -> RS232
 
 	//stdout = uart_stream;                    // switch back
 	//printf("Back on RS232\n");
@@ -90,14 +90,14 @@ int main(void)
 
 	while (1){
 		
-		io_buttons_t b = io_read_buttons();
+		io_buttons_t button = io_read_buttons();
 		io_joystick_t joystick = io_read_joystick();
 		nav_event_t joystick_event = nav_from_joystick(joystick);
-		can_send_joystick(joystick.x, joystick.y, joystick.btn, joystick_event);
-		menu_update(joystick_event, b);
+		can_send_joystick(joystick.x, joystick.y, joystick.btn, joystick_event, button.right);
+		menu_update(joystick_event, button);
 
-		uint8_t left_active = ((b.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
-		uint8_t right_active = ((b.right & IO_RIGHT_BUTTON_MASK) != 0) || ((b.nav & IO_NAV_BUTTON_MASK) != 0);
+		uint8_t left_active = ((button.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
+		uint8_t right_active = ((button.right & IO_RIGHT_BUTTON_MASK) != 0) || ((button.nav & IO_NAV_BUTTON_MASK) != 0);
 		io_led_groups_update(left_active, right_active);
 
 		_delay_ms(20);

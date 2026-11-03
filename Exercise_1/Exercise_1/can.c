@@ -88,11 +88,11 @@ uint8_t  can_send(const can_message_t *msg){
 	return 0;
 }
 
-uint8_t can_send_joystick(uint8_t x, uint8_t y, uint8_t button, nav_event_t nav){
+void can_send_joystick(uint8_t x, uint8_t y, uint8_t button_joy, nav_event_t nav, uint8_t button_id_right){
 	can_message_t msg = {
 		.id = CAN_ID_JOYSTICK,
-		.length = 4,
-		.data = {x, y, button, nav}
+		.length = 5,
+		.data = {x, y, button_joy, nav, button_id_right}
 	};
 	can_send(&msg);
 }

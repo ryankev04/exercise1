@@ -27,6 +27,7 @@
 #include "timer.h"
 #include "IR.h"
 #include "PIController.h"
+#include "Solenoid.h"
  
 static volatile uint32_t millis = 0;
  
@@ -92,6 +93,7 @@ void TC0_Handler(void)
     // TC_SR = Timer Counter Status Register (page 892)
     if (status & TC_SR_CPCS) {
 		millis++;
+		Solenoid_update(millis);
 		if ((millis % CONTROL_PERIOD_MS) == 0u){PIControl_tick(millis);}
 		IR_update();          /* read and filter the IR sensor */
     }

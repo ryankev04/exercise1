@@ -197,6 +197,12 @@
     <Compile Include="pwm.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="Solenoid.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="Solenoid.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="timer.c">
       <SubType>compile</SubType>
     </Compile>

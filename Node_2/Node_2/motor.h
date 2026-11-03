@@ -12,4 +12,5 @@
 void motor_init (void);
 void motor_set(uint8_t dir, uint32_t duty);
 void motor_set_from_joystick(uint8_t x);
+void motor_safe_off(void);
 #endif //MOTOR_H_

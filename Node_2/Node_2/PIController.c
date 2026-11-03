@@ -19,14 +19,14 @@
 
 
 #define TRAVEL 5609 //This was the maximum displacement from one edge to the other edge.
-#define MARGIN 100 //So that it doesn't crash to the edges of the playfield. N is the marginal buffer inside each endpoint.
-#define LINK_TIMEOUT_MS 2000u //Controller becomes disarmed/idle when it has received nothing for N milliseconds.
+#define MARGIN 25 //So that it doesn't crash to the edges of the playfield. N is the marginal buffer inside each endpoint.
+#define LINK_TIMEOUT_MS 5000u //Controller becomes disarmed/idle when it has received nothing for N milliseconds.
 
 #define BACKOFF_POSITION    3000		// After calibrating origin, carriage moves a buffer rightward from the left endpoint. 
 #define BACKOFF_TIMEOUT_MS  2500u	
 
-#define KP 2.00f //Proportionality gain. "f" makes this a float. 
-#define KI 1.20f //Integral gain
+#define KP 1.00f //Proportionality gain. "f" makes this a float. 
+#define KI 0.80f //Integral gain
 #define DT 0.010f //Controller sampling interval
 
 #define TARGET_STEP 80 //How far the PIController's target can change during one update. 
@@ -53,6 +53,13 @@ static volatile int32_t homing_start_count;			//
 static volatile int32_t homing_progress_count;		//
 
 static volatile uint32_t backoff_start_ms;
+
+static volatile uint8_t stop_reason = 0;
+// 0 = none
+// 1 = CAN timeout
+// 2 = position outside limits
+// 3 = manual stop
+// 4 = CAN hasn't received message. 
 
 enum{
 	STOPPED,	//Disarmed
@@ -127,12 +134,12 @@ void PIControl_joystick(uint8_t x, uint32_t now_ms){
 	int32_t new_pos; //New requested carriage position in encoder counts.
 	
 	x = (uint8_t)clamp(x, 54, 201); //Clamp x to the full range of motion that the joystick can move along the x.
-	if (x >= 118 && x <= 134) new_pos = TRAVEL/2; //Often when the joystick is idle, we don't want the motor to oscillate back and forth. 
+	if (x >= 124 && x <= 128) new_pos = TRAVEL/2; //Often when the joystick is idle, we don't want the motor to oscillate back and forth. 
 											//		So we request a predictable, stable carriage position for these joystick readings.
-	else if (x < 118) new_pos = MARGIN + (int32_t)(x-54)*(TRAVEL/2 - MARGIN)/72; //If joystick is tilted leftward, aka x is from 54 to 117, 
+	else if (x < 124) new_pos = MARGIN + (int32_t)(x-54)*(TRAVEL/2 - MARGIN)/70; //If joystick is tilted leftward, aka x is from 54 to 117, 
 																				//		encoder counts will range from 50 (LEFT MARGIN) to around 2460. Mapped.
 																				//126 - 54 = 72. Dividing by 72 normalizes how far the joystick tilts through the left half. 
-	else new_pos = TRAVEL/2 + (int32_t)(x-126)*(TRAVEL-MARGIN - TRAVEL/2)/75; //If joystick is tilted rightward, aka x is from 135 to 201, 
+	else new_pos = TRAVEL/2 + (int32_t)(x-128)*(TRAVEL-MARGIN - TRAVEL/2)/73; //If joystick is tilted rightward, aka x is from 135 to 201, 
 																							//		encoder counts will range from around 3135 to 5559 (RIGHT MARGIN)
 																							//201 - 126 = 75. Dividing by 75 normalizes how far the joystick tilts through the right half.
 	
@@ -156,7 +163,7 @@ PIControl_joystick(uint8_t x, uint32_t now_ms);
 
 void PIControl_command(uint8_t c){
 	uint32_t now_ms = timer_millis();
-	if (c == 'S' || c == 's' || c == ' ') stop(); //S for "Stop".
+	if (c == 'S' || c == 's' || c == ' '){ stop(); stop_reason = 2;} //S for "Stop".
 	else if ((c == 'C' || c == 'c') && mode == STOPPED){ //C for "Calibrate the current position".
 		calibrated = 0;
 		homing_start_ms = homing_last_progress_ms = now_ms;
@@ -204,22 +211,22 @@ Only when the PI Controller is stopped:
 void PIControl_tick(uint32_t tick_now){
 	if (mode == HOMING){
 		int32_t count = encoder_read();
-		if (count <= homing_progress_count - 3){ //If significant leftward movement is detected, count this update as 
+
+		if (count <= homing_progress_count - 3){     // still moving left
 			homing_progress_count = count;
 			homing_last_progress_ms = tick_now;
 		}
-		if (((tick_now - homing_start_ms > 1000) && (homing_start_count - homing_progress_count < 20)) //If homing time exceeds 1 second without substantial leftward movement,  
-			|| tick_now - homing_start_ms > 5000) {															//or homing time exceeds 5 seconds.
-				drive(0);
-				calibrated = 0;
-				mode = STOPPED;
-				return;
-		}
-		if ((homing_start_count - homing_progress_count >= 20) && (tick_now - homing_last_progress_ms >= 150)){ //If there's little leftward movement and time exceeds 150 milliseconds,
+		if ((uint32_t)(tick_now - homing_last_progress_ms) >= 300){
 			drive(0);
 			origin = count;
 			backoff_start_ms = tick_now;
 			mode = BACKOFF;
+			return;
+		}
+		if ((uint32_t)(tick_now - homing_start_ms) > 5000){
+			drive(0);
+			calibrated = 0;
+			mode = STOPPED;
 			return;
 		}
 		return;
@@ -246,11 +253,20 @@ void PIControl_tick(uint32_t tick_now){
 		return; //If the test is indeed over, don't bother executing control_tick, get out of here.
 	}
 	if (mode == STOPPED) return;
-	if (!have_rx											//If we have not received a valid joystick CAN message,
-			|| (uint32_t)(tick_now - last_rx) > LINK_TIMEOUT_MS		//or the latest message is more than 500 ms old,
-			|| pos < -50										//or the position is more than 50 counts left of the reference, basically if the carriage is out-of-bounds.
-			|| pos > TRAVEL+50){								//or the position is more than 50 counts beyond the expected right endpoint, basically if the carriage is out-of-bounds.
+	if ((uint32_t)(tick_now - last_rx) > LINK_TIMEOUT_MS){		//If the latest message is more than 500 ms old,
 		stop();													//...do not continue. 
+		stop_reason = 1;										//Provide reason for the stop. 
+		return;
+	}
+	if (!have_rx){											//If we have not received a valid joystick CAN message,
+		stop();													//...do not continue.
+		stop_reason = 4;										//Provide reason for the stop.
+		return;
+	}
+	if (pos < -50										//or the position is more than 50 counts left of the reference, basically if the carriage is out-of-bounds.
+	|| pos > TRAVEL+50){								//or the position is more than 50 counts beyond the expected right endpoint, basically if the carriage is out-of-bounds.)
+		stop_reason = 2;
+		stop();
 		return;
 	}
 	int32_t delta = clamp(requested-target, -TARGET_STEP, TARGET_STEP); //Requested = position selected by the joystick. Target = position the controller currently pursues.
@@ -290,6 +306,9 @@ control_tick();
 void PIControl_print(void){
 	printf("PIControl_print: || Mode: %u || Calibrated?: %u || Polarity: %d || Verified?: %u || Raw Encoder Value: %d || Origin: %d || Position: %d || Target Position: %d || Requested Position: %d || PI Output: %d\n", 
 			(unsigned)mode, (unsigned)calibrated, (int)polarity, (unsigned)verified, (int)encoder_read(), (int)origin, (int)(encoder_read() - origin), (int)target, (int)requested, (int)output);
+	if (!(stop_reason == 0)){
+		printf("STOP_REASON=%u ; CAN_AGE=%lu ms\r\n", stop_reason, (unsigned long)(timer_millis() - last_rx));
+	}
 }
 
 /************************************************************************/

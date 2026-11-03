@@ -45,7 +45,7 @@ typedef struct {
 } can_message_t;
  
 uint8_t can_send(const can_message_t *msg);
-uint8_t can_send_joystick(uint8_t x, uint8_t y, uint8_t button, nav_event_t nav);
+void can_send_joystick(uint8_t x, uint8_t y, uint8_t button_joy, nav_event_t nav, uint8_t button_id_right);
 uint8_t can_receive(can_message_t *msg);   // returns 1 if a message was read, 0 if none
 //void can_loopback_test(void);
 void can_test(void);
