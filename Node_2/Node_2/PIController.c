@@ -25,7 +25,7 @@
 #define BACKOFF_POSITION    3000		// After calibrating origin, carriage moves a buffer rightward from the left endpoint. 
 #define BACKOFF_TIMEOUT_MS  2500u	
 
-#define KP 1.00f //Proportionality gain. "f" makes this a float. 
+#define KP 0.50f //Proportionality gain. "f" makes this a float. 
 #define KI 0.80f //Integral gain
 #define DT 0.010f //Controller sampling interval
 
@@ -253,14 +253,14 @@ void PIControl_tick(uint32_t tick_now){
 		return; //If the test is indeed over, don't bother executing control_tick, get out of here.
 	}
 	if (mode == STOPPED) return;
-	if ((uint32_t)(tick_now - last_rx) > LINK_TIMEOUT_MS){		//If the latest message is more than 500 ms old,
-		stop();													//...do not continue. 
-		stop_reason = 1;										//Provide reason for the stop. 
-		return;
-	}
 	if (!have_rx){											//If we have not received a valid joystick CAN message,
 		stop();													//...do not continue.
 		stop_reason = 4;										//Provide reason for the stop.
+		return;
+	}
+	if ((uint32_t)(tick_now - last_rx) > LINK_TIMEOUT_MS){		//If the latest message is more than 500 ms old,
+		stop();													//...do not continue. 
+		stop_reason = 1;										//Provide reason for the stop. 
 		return;
 	}
 	if (pos < -50										//or the position is more than 50 counts left of the reference, basically if the carriage is out-of-bounds.

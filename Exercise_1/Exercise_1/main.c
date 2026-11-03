@@ -100,7 +100,7 @@ int main(void)
 		uint8_t right_active = ((button.right & IO_RIGHT_BUTTON_MASK) != 0) || ((button.nav & IO_NAV_BUTTON_MASK) != 0);
 		io_led_groups_update(left_active, right_active);
 
-		_delay_ms(20);
+		_delay_ms(5);
 	}
 }
 

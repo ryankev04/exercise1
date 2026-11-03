@@ -13,7 +13,7 @@
 #define UART_H_
 
 #define F_CPU 84000000
-#define BAUD  9600       // set your terminal (PuTTY/Tera Term) to the same
+#define BAUD  115200       // set your terminal (PuTTY/Tera Term) to the same
 // Initialize. Hooks stdio functions (like `printf`)
 void uart_init(uint32_t cpufreq, uint32_t baudrate);
 
