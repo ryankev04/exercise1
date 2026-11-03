@@ -15,6 +15,9 @@
 #include "motor.h"
 #include "IR.h"
 #include "adc.h"
+#include "timer.h"
+#include "Encoder.h"
+#include "PIController.h"
 
 
 
@@ -24,11 +27,10 @@ int main(void)
     /* Initialize the SAM system */
     SystemInit();
 	WDT->WDT_MR = WDT_MR_WDDIS;        // disable watchdog, 
-	
 
 	uart_init(F_CPU, BAUD);
 	printf("Hello  from ATSAMx\n\r");
-	printf("TEST 1 BUILD %s %s\n\r", __DATE__, __TIME__);
+	printf("Exercise 8 Test BUILD %s %s\n\r", __DATE__, __TIME__);
 		
 	// 500 kbit/s: TQ = 21/84 MHz = 250 ns, Sync 1 + Prop 3 + PS1 2 + PS2 2 = 8 TQ
 	CanInit init = { .reg = CAN_BR_BRP(20) | CAN_BR_SJW(0) |CAN_BR_PROPAG(2) | CAN_BR_PHASE1(1) | CAN_BR_PHASE2(1) };
@@ -41,10 +43,15 @@ int main(void)
 		
 	// starting the ADC 
 	adc_init();
-	timer_init();
-	encoder_init();
-    /* Replace with your application code */
-	static uint8_t counting_loop = 0;
+	encoder_init(); 
+	PIControl_init(); //PIControl_print calls encoder_read();
+	timer_init(); //TC0_Handler calls PIControl_tick();
+	PIControl_command('.');  
+	PIControl_command('C'); //Start automatic calibration once at startup.  
+	printf("PIController controls:\nS: STOP\nP: Print values\nOnly when the PI Controller is stopped:\n  C: Calibrate\n  R: Reverse Polarity\n"
+	  "V: Verified\n  ',' and '.' to test the motor left and right.\n  A: Activate.\n");
+	uint32_t printed_ms = timer_millis(); //To keep track of time.
+ 	static uint8_t counting_loop_CANRXprint = 0;
 	while (1) {
 		CanMsg m;
 		if (can_rx(&m)) {
@@ -54,26 +61,25 @@ int main(void)
 				uint8_t button = m.byte[2];
 				nav_event_t joystick_nav = m.byte[3];
 				
-				motor_set_from_joystick(x); //motor
+// 				motor_set_from_joystick(x); //motorV1
+				PIControl_joystick(x, timer_millis()); //motorV2
 				servo_set_from_joystick(y); //servo
 
-
-				if (counting_loop >= 10) {
-                    printf("X=%u Y=%u BTN=%u NAV=%u  enc=%ld  CDTY=%lu\r\n", x, y, button, joystick_nav, (long)encoder_read(),(unsigned long)servo_get_cdty());
+				if (counting_loop_CANRXprint >= 10) {
+					printf("X=%u Y=%u BTN=%u NAV=%u  enc=%ld  CDTY=%lu\r\n", x, y, button, joystick_nav, (long)encoder_read(),(unsigned long)servo_get_cdty());
 					//IR_count_goal();
-
-					counting_loop = 0;
+					counting_loop_CANRXprint = 0;
 				}
-				else
-				{ 
-					counting_loop++;
+				else{ 
+					counting_loop_CANRXprint++;
 				}
-			}
+			}	
 		}
-						if (IR_goal_happened())
-						{
-							printf("GOAL!  score = %u\r\n", IR_get_score());
-						}
-	
+		uint8_t command;
+		if (uart_rx(&command)) PIControl_command(command);
+		if (IR_goal_happened()) printf("GOAL!  score = %u\r\n", IR_get_score());
+		uint32_t now_ms = timer_millis();
+		if ((uint32_t)(now_ms - printed_ms) >= 1000u) {printed_ms = now_ms; PIControl_print();} //Execute every second. 
+		
 	}
 }

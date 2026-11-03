@@ -185,6 +185,12 @@
     <Compile Include="motor.h">
       <SubType>compile</SubType>
     </Compile>
+    <Compile Include="PIController.c">
+      <SubType>compile</SubType>
+    </Compile>
+    <Compile Include="PIController.h">
+      <SubType>compile</SubType>
+    </Compile>
     <Compile Include="pwm.c">
       <SubType>compile</SubType>
     </Compile>

@@ -5,15 +5,16 @@
  *  Author: ngabo
  */ 
 #include "sam.h"
-#include "motor.h"
+#include "motor.h" 
 
 
 #define JOY_CENTER       126
 #define JOY_MAX_DIFF     75              
 #define MOTOR_CPRD 4200   // 84 MHz / 4200 = 20 kHz
 #define MOTOR_DEADBAND  10
-#define MOTOR_MAX       (MOTOR_CPRD / 4)   // 25 % for the first test
+#define MOTOR_MAX       (MOTOR_CPRD / 2)   // 50 %
 void motor_init (void) {
+	PMC->PMC_PCER1 = (1u << (ID_PWM - 32));
 	/* NOTE: the PWM clock (PMC_PCER1, ID_PWM) is turned on in servo_init()
      * in pwm.c. servo_init() MUST be called before motor_init(),
      * otherwise the PWM registers below are not written and the motor
@@ -66,7 +67,7 @@ void motor_init (void) {
 void motor_set(uint8_t dir, uint32_t duty)
 {
     // Safety: never more than 100 %
-    if (duty > MOTOR_CPRD) duty = MOTOR_CPRD;
+    if (duty > MOTOR_MAX) duty = MOTOR_MAX;
 
     // Direction on the PHASE pin
     if (dir)

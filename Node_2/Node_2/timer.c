@@ -26,6 +26,7 @@
 #include "sam.h"
 #include "timer.h"
 #include "IR.h"
+#include "PIController.h"
  
 static volatile uint32_t millis = 0;
  
@@ -77,8 +78,7 @@ void timer_init(void)
 }
  
 // Return the number of milliseconds since the timer was initialized.
-uint32_t timer_millis(void)
-{
+uint32_t timer_millis(void){
     return millis;
 }
  
@@ -91,8 +91,9 @@ void TC0_Handler(void)
     // If the interrupt was caused by RC compare, increment the millisecond counter and call ir_update() to read and filter the IR sensor. 
     // TC_SR = Timer Counter Status Register (page 892)
     if (status & TC_SR_CPCS) {
-        millis++;
-       IR_update();          /* read and filter the IR sensor */
+		millis++;
+		if ((millis % CONTROL_PERIOD_MS) == 0u){PIControl_tick(millis);}
+		IR_update();          /* read and filter the IR sensor */
     }
 }
 
