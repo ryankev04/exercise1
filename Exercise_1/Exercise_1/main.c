@@ -72,29 +72,16 @@ int main(void)
 	
 	oled_clear();
 
-	static menu_t options_menu = {
-		.title = "Options",
-		.items = { "Brightness", "Sound", "Back" },
-		.item_count = 3,
-		.submenus = { NULL, NULL, MENU_BACK }   // all leaves for now -- see note below
-	};
+	menu_init();
 
-	static menu_t main_menu = {
-		.title = "Main Menu",
-		.items = { "Start Game", "Options", "About" },
-		.item_count = 3,
-		.submenus = { NULL, &options_menu, NULL }
-	};
-
-	menu_init(&main_menu); 
 
 	while (1){
 		
 		io_buttons_t button = io_read_buttons();
 		io_joystick_t joystick = io_read_joystick();
 		nav_event_t joystick_event = nav_from_joystick(joystick);
-		can_send_joystick(joystick.x, joystick.y, joystick.btn, joystick_event, button.right);
 		menu_update(joystick_event, button);
+		can_send_joystick(joystick.x, joystick.y, joystick.btn, joystick_event, button.right);
 
 		uint8_t left_active = ((button.left & IO_LEFT_BUTTON_MASK) != 0) || (joystick_event != NAV_NEUTRAL);
 		uint8_t right_active = ((button.right & IO_RIGHT_BUTTON_MASK) != 0) || ((button.nav & IO_NAV_BUTTON_MASK) != 0);

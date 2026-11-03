@@ -33,6 +33,10 @@
 							//Makes the target move faster, not the carriage itself. Increasing can lead to larger position error in consequence.
 #define NUDGE_UNIT 1000
 #define JOG_NUDGE_UNIT	5000
+#define GAME_TIMEOUT_MS 1000u
+
+static volatile uint8_t game_enabled = 0;
+static volatile uint32_t game_last_rx = 0;
 
 static volatile uint8_t mode;		//operating state, bool check, 
 static volatile uint8_t calibrated; //bool check, 1 after the operator captures the left endpoint as origin.
@@ -206,9 +210,45 @@ Only when the PI Controller is stopped:
 */
 /************************************************************************/
 
+void PIControl_game(uint8_t enabled, uint32_t now_ms){
+    /*
+     * Prevent the timer interrupt from observing a partially
+     * completed start/stop transition.
+     */
+    uint32_t saved_primask = __get_PRIMASK();
+    __disable_irq();
+
+    if (!enabled) {
+        game_enabled = 0;
+        stop();
+    }
+    else {
+        game_last_rx = now_ms;
+
+        if (!game_enabled) {
+            /*
+             * A new session recalibrates using your existing
+             * calibration procedure and polarity.
+             */
+            PIControl_init();
+
+            game_enabled = 1;
+            PIControl_command('C');
+        }
+    }
+
+    __set_PRIMASK(saved_primask);
+}
 
 
 void PIControl_tick(uint32_t tick_now){
+	if (!game_enabled ||
+	(uint32_t)(tick_now - game_last_rx) > GAME_TIMEOUT_MS) {
+
+		game_enabled = 0;
+		stop();
+		return;
+	}
 	if (mode == HOMING){
 		int32_t count = encoder_read();
 
@@ -236,6 +276,13 @@ void PIControl_tick(uint32_t tick_now){
 		if (pos >= BACKOFF_POSITION){
 			stop();
 			calibrated = (pos <= TRAVEL - MARGIN); //As long as the position is within bounds, the carriage is calibrated. 
+			
+			if (calibrated && have_rx) { 
+				target = pos;
+				integral = 0;
+				mode = ACTIVE;
+			}
+			
 			return;
 		}
 		if ((uint32_t)(tick_now - backoff_start_ms) >= BACKOFF_TIMEOUT_MS // If time elapsed is greater than timeout,

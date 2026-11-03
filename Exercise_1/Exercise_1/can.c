@@ -91,11 +91,11 @@ uint8_t  can_send(const can_message_t *msg){
 void can_send_joystick(uint8_t x, uint8_t y, uint8_t button_joy, nav_event_t nav, uint8_t button_id_right){
 	can_message_t msg = {
 		.id = CAN_ID_JOYSTICK,
-		.length = 5,
-		.data = {x, y, button_joy, nav, button_id_right}
+		.length = 6,
+		.data = {x, y, button_joy, nav, button_id_right, menu_game_active()}
 	};
 	if (can_send(&msg)){
-		printf("can_send: Error: Could not send message\n");
+		printf("can_send: Err\n");
 	}
 	else {}
 }

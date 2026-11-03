@@ -28,6 +28,11 @@
 #define BLINK_PERIOD_TICKS      12  // 12 * 20 ms = approximately 240 ms
 #define SR6_CANCEL_MASK       0x20
 
+static uint8_t blink_ticks = 0; // counts loop passes between blink toggles
+static uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
+static uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
+static uint8_t game_active = 0;
+
 typedef enum {
 	PENDING_NONE,
 	PENDING_BACK,
@@ -44,18 +49,119 @@ static menu_t empty_menu = {
 	.item_count = 1,
 	.submenus = { MENU_BACK }
 };
-
+static menu_t play_menu = {
+	.title = "Play",
+	.items = {
+		"Blue Pong",
+		"Back"
+	},
+	.item_count = 2,
+	.submenus = {
+		NULL,
+		MENU_BACK
+	}
+};
+/*
+ * STATISTICS
+ *
+ * Later, Blue Pong will open its statistics screen.
+ */
+static menu_t statistics_menu = {
+    .title = "Statistics",
+    .items = {
+        "Blue Pong",
+        "Back"
+    },
+    .item_count = 2,
+    .submenus = {
+        NULL,
+        MENU_BACK
+    }
+};
+static menu_t blue_pong_settings_menu = {
+	.title = "Blue Pong Settings",
+	.items = {
+		"Difficulty",
+		"Controls",
+		"Back"
+	},
+	.item_count = 3,
+	.submenus = {
+		NULL,
+		NULL,
+		MENU_BACK
+	}
+};
+static menu_t accessibility_menu = {
+    .title = "Game Accessibilities",
+    .items = {
+        "Blue Pong",
+        "Back"
+    },
+    .item_count = 2,
+    .submenus = {
+        &blue_pong_settings_menu,
+        MENU_BACK
+    }
+};
+static menu_t reset_statistics_menu = {
+	.title = "Reset Statistics",
+	.items = {
+		"Blue Pong",
+		"Reset All Statistics",
+		"Back"
+	},
+	.item_count = 3,
+	.submenus = {
+		NULL,
+		NULL,
+		MENU_BACK
+	}
+};
+static menu_t settings_menu = {
+	.title = "Settings",
+	.items = {
+		"Sound Options",
+		"Controls",
+		"Game Accessibilities",
+		"Reset Statistics",
+		"Back"
+	},
+	.item_count = 5,
+	.submenus = {
+		NULL,
+		NULL,
+		&accessibility_menu,
+		&reset_statistics_menu,
+		MENU_BACK
+	}
+};
+static menu_t main_menu = {
+	.title = "Main Menu",
+	.items = {
+		"Play",
+		"Statistics",
+		"Settings",
+		"About"
+	},
+	.item_count = 4,
+	.submenus = {
+		&play_menu,
+		&statistics_menu,
+		&settings_menu,
+		NULL
+	}
+};
 
 // Convert the large analogue joystick reading into one menu event.
 nav_event_t nav_from_joystick(io_joystick_t j){
-
-// Button takes priority -- if it's pressed, report CLICK straight
-// away and don't even look at direction.
+	// Button takes priority -- if it's pressed, report CLICK straight
+	// away and don't even look at direction.
 	if (j.btn == NAV_BTN_PRESSED_VALUE) {
 		return NAV_CLICK;
 	}
 
-// How far off-center is the stick, on each axis?
+	// How far off-center is the stick, on each axis?
 	int16_t dev_x = (int16_t)j.x - NAV_CENTER;
 	int16_t dev_y = (int16_t)j.y - NAV_CENTER;
 
@@ -194,6 +300,9 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 {
 	menu_t *current = stack[*depth];
 	menu_t *sub = current->submenus[selected_stack[*depth]];
+	if (sub == &play_menu) {
+		game_active = 1;
+	}
 
 	if (sub == MENU_BACK) {
 		menu_go_back(stack, selected_stack, depth);
@@ -216,23 +325,50 @@ static uint8_t selected_stack[MENU_STACK_DEPTH];  // which item is highlighted, 
 static uint8_t depth;
 static nav_event_t last_event = NAV_NEUTRAL;
 static pending_action_t pending = PENDING_NONE; // is a LEFT/RIGHT action armed
-static uint8_t blink_ticks = 0; // counts loop passes between blink toggles
-static uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
-static uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
-void menu_init(menu_t *root){
+
+
+uint8_t menu_game_active(void){
+	return game_active;
+}
+
+void menu_init(void){
 	depth = 0;
-	stack[0] = root;
+	stack[0] = &main_menu;
 	selected_stack[0] = 0;
 	last_event = NAV_NEUTRAL;
 	pending = PENDING_NONE;
 	blink_ticks = 0;
 	blink_visible = 1;
 	wait_for_neutral = 0;
-	menu_draw(root, 0); // show the menu before waiting for any input
+	game_active = 0;
+	menu_draw(&main_menu, 0); // show the menu before waiting for any input
 }
 	
 void menu_update(nav_event_t event, io_buttons_t buttons){
-	uint8_t sr6_pressed = (buttons.right & SR6_CANCEL_MASK) != 0;
+	uint8_t sr6_pressed = (buttons.right & SR6_CANCEL_MASK) != 0; 
+	
+	if (game_active && (buttons.left & (1u << 3))) {
+		game_active = 0;
+
+		/* Return to the Main Menu. */
+		depth = 0;
+		selected_stack[0] = 0;
+
+		pending = PENDING_NONE;
+		last_event = event;
+		wait_for_neutral = 1;
+
+		menu_draw(stack[0], selected_stack[0]);
+		return;
+	}
+	/*
+	 * While playing, the joystick controls the hardware.
+	 * It must not simultaneously navigate the menus.
+	 */
+	if (game_active) {
+		return;
+	}
+	
 	menu_t *current = stack[depth];
 	uint8_t *selected = &selected_stack[depth];
 	if (pending != PENDING_NONE) {

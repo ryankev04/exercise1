@@ -13,6 +13,7 @@
 void Solenoid_init(void);
 void Solenoid_run(uint32_t now_ms);
 void Solenoid_update(uint32_t now_ms);
+void Solenoid_stop(void);
 
 // typedef struct {
 // 	uint8_t right;   // [0 0 R6 R5 R4 R3 R2 R1]

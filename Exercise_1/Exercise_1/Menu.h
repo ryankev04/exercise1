@@ -34,7 +34,8 @@ typedef struct menu {
 
 
 nav_event_t nav_from_joystick(io_joystick_t joystick);
-void menu_init(menu_t *root);
+void menu_init(void);
 void menu_update(nav_event_t event, io_buttons_t buttons);
+uint8_t menu_game_active(void);
 
 #endif //MENU_H_

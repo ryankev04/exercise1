@@ -21,6 +21,7 @@ void PIControl_command(uint8_t command);
 void PIControl_joystick(uint8_t x, uint32_t now);
 void PIControl_tick(uint32_t now);
 void PIControl_print(void);
+void PIControl_game(uint8_t enabled, uint32_t now_ms);
 
 
 

@@ -27,6 +27,11 @@ void Solenoid_init(void){
 	PIOC->PIO_OER = SOLENOID_PIN;
 }
 
+void Solenoid_stop(void){
+	/* HIGH = OFF in your existing circuit. */
+	PIOC->PIO_SODR = SOLENOID_PIN;
+	solenoid_active = 0;
+}
 
 void Solenoid_run(uint32_t now_ms){
 	if (solenoid_active) return;
