@@ -7,6 +7,7 @@
 
 #include "sam.h"
 #include "Solenoid.h"
+#include "audio.h"
 
 #define SOLENOID_PIN       (1u << 22)
 #define SOLENOID_PULSE_MS  40u

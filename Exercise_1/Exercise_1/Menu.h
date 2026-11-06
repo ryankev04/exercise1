@@ -30,12 +30,13 @@ typedef struct menu {
 	const char *items[MENU_MAX_ITEMS];
 	uint8_t item_count;
 	struct menu *submenus[MENU_MAX_ITEMS];   // NULL = leaf item
+	void (*actions[MENU_MAX_ITEMS])(void);   // function to run when selected, or NULL
 } menu_t;
 
 
 nav_event_t nav_from_joystick(io_joystick_t joystick);
-void menu_init(void);
+void menu_init(menu_t *root);
 void menu_update(nav_event_t event, io_buttons_t buttons);
-uint8_t menu_game_active(void);
+void menu_redraw(void);   // draw the current menu again (e.g. after a game)
 
 #endif //MENU_H_

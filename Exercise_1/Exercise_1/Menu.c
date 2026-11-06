@@ -6,10 +6,12 @@
  */ 
 
 #include "Menu.h"
+#include "audio_ui.h"
 #include "Io.h"
 #include "oled.h"
 #include "usart.h"
 #include <stdlib.h>
+#include <string.h>     // strlen()
 #include <util/delay.h>
 
 // UNVERIFIED PLACEHOLDERS -- confirm with a raw print test
@@ -28,11 +30,6 @@
 #define BLINK_PERIOD_TICKS      12  // 12 * 20 ms = approximately 240 ms
 #define SR6_CANCEL_MASK       0x20
 
-static uint8_t blink_ticks = 0; // counts loop passes between blink toggles
-static uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
-static uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
-static uint8_t game_active = 0;
-
 typedef enum {
 	PENDING_NONE,
 	PENDING_BACK,
@@ -44,124 +41,23 @@ typedef enum {
  * from menu_run(). That keeps the UI alive and provides one safe way out.
  */
 static menu_t empty_menu = {
-	.title = "Empty",
+	.title = "Coming soon",
 	.items = { "Back" },
 	.item_count = 1,
 	.submenus = { MENU_BACK }
 };
-static menu_t play_menu = {
-	.title = "Play",
-	.items = {
-		"Blue Pong",
-		"Back"
-	},
-	.item_count = 2,
-	.submenus = {
-		NULL,
-		MENU_BACK
-	}
-};
-/*
- * STATISTICS
- *
- * Later, Blue Pong will open its statistics screen.
- */
-static menu_t statistics_menu = {
-    .title = "Statistics",
-    .items = {
-        "Blue Pong",
-        "Back"
-    },
-    .item_count = 2,
-    .submenus = {
-        NULL,
-        MENU_BACK
-    }
-};
-static menu_t blue_pong_settings_menu = {
-	.title = "Blue Pong Settings",
-	.items = {
-		"Difficulty",
-		"Controls",
-		"Back"
-	},
-	.item_count = 3,
-	.submenus = {
-		NULL,
-		NULL,
-		MENU_BACK
-	}
-};
-static menu_t accessibility_menu = {
-    .title = "Game Accessibilities",
-    .items = {
-        "Blue Pong",
-        "Back"
-    },
-    .item_count = 2,
-    .submenus = {
-        &blue_pong_settings_menu,
-        MENU_BACK
-    }
-};
-static menu_t reset_statistics_menu = {
-	.title = "Reset Statistics",
-	.items = {
-		"Blue Pong",
-		"Reset All Statistics",
-		"Back"
-	},
-	.item_count = 3,
-	.submenus = {
-		NULL,
-		NULL,
-		MENU_BACK
-	}
-};
-static menu_t settings_menu = {
-	.title = "Settings",
-	.items = {
-		"Sound Options",
-		"Controls",
-		"Game Accessibilities",
-		"Reset Statistics",
-		"Back"
-	},
-	.item_count = 5,
-	.submenus = {
-		NULL,
-		NULL,
-		&accessibility_menu,
-		&reset_statistics_menu,
-		MENU_BACK
-	}
-};
-static menu_t main_menu = {
-	.title = "Main Menu",
-	.items = {
-		"Play",
-		"Statistics",
-		"Settings",
-		"About"
-	},
-	.item_count = 4,
-	.submenus = {
-		&play_menu,
-		&statistics_menu,
-		&settings_menu,
-		NULL
-	}
-};
+
 
 // Convert the large analogue joystick reading into one menu event.
 nav_event_t nav_from_joystick(io_joystick_t j){
-	// Button takes priority -- if it's pressed, report CLICK straight
-	// away and don't even look at direction.
+
+// Button takes priority -- if it's pressed, report CLICK straight
+// away and don't even look at direction.
 	if (j.btn == NAV_BTN_PRESSED_VALUE) {
 		return NAV_CLICK;
 	}
 
-	// How far off-center is the stick, on each axis?
+// How far off-center is the stick, on each axis?
 	int16_t dev_x = (int16_t)j.x - NAV_CENTER;
 	int16_t dev_y = (int16_t)j.y - NAV_CENTER;
 
@@ -222,18 +118,16 @@ static uint8_t menu_selected_row(uint8_t selected)
 
 static void menu_draw_help(pending_action_t pending)
 {
-	oled_clear_line(MENU_HELP_ROW);
-	oled_pos(MENU_HELP_ROW, 0);
-
+	// oled_print_line() overwrites the whole row, so no clear is needed.
 	if (pending == PENDING_BACK) {
-		oled_print("Release:< SR6:Cancel");
+		oled_print_line(MENU_HELP_ROW, "Release:< SR6:Cancel");
 	}
 	else if (pending == PENDING_SELECT) {
-		oled_print("Release:> SR6:Cancel");
+		oled_print_line(MENU_HELP_ROW, "Release:> SR6:Cancel");
 	}
 	else {
 		// Exactly 21 font characters = 126 pixels on the 128-pixel display.
-		oled_print("U/D Move  < Back > Go");
+		oled_print_line(MENU_HELP_ROW, "U/D Move  < Back > Go");
 	}
 }
 
@@ -246,27 +140,59 @@ static void menu_draw_marker(uint8_t selected, char marker)
 {
 	char text[2] = { marker, '\0' };
 	oled_pos(menu_selected_row(selected), 0);
-	oled_print(text);
+	// The selected row is a white highlight bar, so the marker must be
+	// drawn inverted too (otherwise it would be a black block in the bar).
+	oled_print_inverted(text);
+}
+
+/*
+* menu_draw_row(): draw one menu item over the FULL width (128 columns).
+*
+*   selected = 1 -> ">Item" in black on a white bar to the right edge
+*   selected = 0 -> " Item" in white on black, rest of the row erased
+*
+* Because every column of the row is written, the old content is
+* overwritten -> menu_draw() no longer needs oled_clear() -> no flicker.
+* One row holds 21 characters: 1 marker + max 20 for the item text.
+*/
+static void menu_draw_row(const char *text, uint8_t row, uint8_t selected)
+{
+	uint8_t used = 6 + 6 * strlen(text);   // columns used: marker + text
+
+	oled_pos(row, 0);
+	if (selected) {
+		oled_print_inverted(">");
+		oled_print_inverted(text);
+		oled_fill_to_end(used, 0xFF);      // white to the end = highlight bar
+	}
+	else {
+		oled_print(" ");
+		oled_print(text);
+		oled_fill_to_end(used, 0x00);      // black to the end = erase old text
+	}
 }
 
 // Draw title, visible menu entries, and the persistent help line.
 static void menu_draw(menu_t *menu, uint8_t selected)
 {
 	uint8_t first = menu_first_visible_item(selected);
-	
-	oled_clear();
-	oled_pos(0, 0);
-	oled_print(menu->title);
-	
+
+	// No oled_clear() any more: every row below is written over its full
+	// width, which overwrites the old screen without a black flash.
+
+	// Title row: centred, with a line under it across the whole width
+	oled_print_title(0, menu->title);
+
 	for (uint8_t row = 0; row < MENU_VISIBLE_ITEMS; row++) {
 		uint8_t item = first + row;
-		if (item >= menu->item_count) {
-			break;
+		if (item < menu->item_count) {
+			menu_draw_row(menu->items[item], MENU_FIRST_ITEM_ROW + row, item == selected);
 		}
-
-		oled_pos(MENU_FIRST_ITEM_ROW + row, 0);
-		oled_print(item == selected ? ">" : " ");
-		oled_print(menu->items[item]);
+		else {
+			// Fewer items than rows (short menu): erase the leftover row,
+			// otherwise text from a bigger menu would stay visible.
+			oled_clear_line(MENU_FIRST_ITEM_ROW + row);
+		}
 	}
 	menu_draw_help(PENDING_NONE);
 }
@@ -287,6 +213,7 @@ static void menu_draw(menu_t *menu, uint8_t selected)
 static void menu_go_back(menu_t **stack, uint8_t *selected_stack, uint8_t *depth)
 {
 	if (*depth > 0) {
+		audio_event(AUD_BACK);
 		(*depth)--;
 	}
 	menu_draw(stack[*depth], selected_stack[*depth]);
@@ -300,8 +227,18 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 {
 	menu_t *current = stack[*depth];
 	menu_t *sub = current->submenus[selected_stack[*depth]];
-	if (sub == &play_menu) {
-		game_active = 1;
+
+	/*
+	* If this item has an action (a function), run it instead of opening a
+	* page. Example: "Ping Pong" -> start_pingpong() in main.c.
+	* actions[] is an array of function pointers: each item can hold the
+	* name of a function, or NULL if it has none.
+	*/
+	void (*action)(void) = current->actions[selected_stack[*depth]];
+	if (action != NULL) {
+		audio_event(AUD_ENTER);
+		action();
+		return;
 	}
 
 	if (sub == MENU_BACK) {
@@ -310,11 +247,18 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 	}
 
 	if (*depth >= MENU_STACK_DEPTH - 1) {
+		audio_event(AUD_ERROR);
 		return;
 	}
 
+	audio_event(sub == NULL ? AUD_ERROR : AUD_ENTER);
 	(*depth)++;
-	stack[*depth] = (sub == NULL) ? &empty_menu : sub;
+	if (sub == NULL) {
+		stack[*depth] = &empty_menu;      // not made yet -> "Coming soon" page
+	}
+	else {
+		stack[*depth] = sub;
+	}
 	selected_stack[*depth] = 0;
 	menu_draw(stack[*depth], 0);
 }
@@ -325,50 +269,23 @@ static uint8_t selected_stack[MENU_STACK_DEPTH];  // which item is highlighted, 
 static uint8_t depth;
 static nav_event_t last_event = NAV_NEUTRAL;
 static pending_action_t pending = PENDING_NONE; // is a LEFT/RIGHT action armed
-
-
-uint8_t menu_game_active(void){
-	return game_active;
-}
-
-void menu_init(void){
+static uint8_t blink_ticks = 0; // counts loop passes between blink toggles
+static uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
+static uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
+void menu_init(menu_t *root){
 	depth = 0;
-	stack[0] = &main_menu;
+	stack[0] = root;
 	selected_stack[0] = 0;
 	last_event = NAV_NEUTRAL;
 	pending = PENDING_NONE;
 	blink_ticks = 0;
 	blink_visible = 1;
 	wait_for_neutral = 0;
-	game_active = 0;
-	menu_draw(&main_menu, 0); // show the menu before waiting for any input
+	menu_draw(root, 0); // show the menu before waiting for any input
 }
 	
 void menu_update(nav_event_t event, io_buttons_t buttons){
-	uint8_t sr6_pressed = (buttons.right & SR6_CANCEL_MASK) != 0; 
-	
-	if (game_active && (buttons.left & (1u << 3))) {
-		game_active = 0;
-
-		/* Return to the Main Menu. */
-		depth = 0;
-		selected_stack[0] = 0;
-
-		pending = PENDING_NONE;
-		last_event = event;
-		wait_for_neutral = 1;
-
-		menu_draw(stack[0], selected_stack[0]);
-		return;
-	}
-	/*
-	 * While playing, the joystick controls the hardware.
-	 * It must not simultaneously navigate the menus.
-	 */
-	if (game_active) {
-		return;
-	}
-	
+	uint8_t sr6_pressed = (buttons.right & SR6_CANCEL_MASK) != 0;
 	menu_t *current = stack[depth];
 	uint8_t *selected = &selected_stack[depth];
 	if (pending != PENDING_NONE) {
@@ -401,7 +318,17 @@ void menu_update(nav_event_t event, io_buttons_t buttons){
 				if (blink_ticks >= BLINK_PERIOD_TICKS) {
 					blink_ticks = 0;
 					blink_visible = !blink_visible;
-					menu_draw_marker(*selected, blink_visible ? (pending == PENDING_BACK ? '<' : '>') : ' ');
+					// Blink: show the marker, then a space, then the marker ...
+					char marker = ' ';
+					if (blink_visible) {
+						if (pending == PENDING_BACK) {
+							marker = '<';
+						}
+						else {
+							marker = '>';
+						}
+					}
+					menu_draw_marker(*selected, marker);
 				}
 			}
 		}
@@ -430,11 +357,13 @@ void menu_update(nav_event_t event, io_buttons_t buttons){
 	last_event = event;
 
 	if (event == NAV_UP) {
+		audio_event(AUD_NAV);
 		if (*selected == 0) *selected = current->item_count - 1;
 		else (*selected)--;
 		menu_draw(current, *selected);
 	}
 	else if (event == NAV_DOWN) {
+		audio_event(AUD_NAV);
 		(*selected)++;
 		if (*selected >= current->item_count) {
 			*selected = 0;
@@ -459,4 +388,13 @@ void menu_update(nav_event_t event, io_buttons_t buttons){
 		// The joystick push-button remains an immediate selection shortcut.
 		menu_open_selected(stack, selected_stack, &depth);
 	}
+}
+
+/*
+* menu_redraw(): draw the menu we are currently in again.
+* Used when a game ends and the screen has to go back to the menu.
+*/
+void menu_redraw(void)
+{
+	menu_draw(stack[depth], selected_stack[depth]);
 }

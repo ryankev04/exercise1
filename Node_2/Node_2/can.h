@@ -5,7 +5,25 @@
 
 #include <stdint.h>
 
-#define CAN_ID_JOYSTICK 0x100
+#define CAN_ID_JOYSTICK 0x100   // Node 1 -> Node 2: joystick, buttons, game command
+#define CAN_ID_STATUS   0x200   // Node 2 -> Node 1: motor status + game stats
+
+/* Joystick message from Node 1 (CAN_ID_JOYSTICK), 7 bytes:
+ *   byte 0: joystick X        byte 1: joystick Y
+ *   byte 2: joystick button   byte 3: nav event
+ *   byte 4: right buttons (bit 4 = SR5 = shoot)
+ *   byte 5: game command (GAME_CMD_...)
+ *   byte 6: control mode  (0 = position, 1 = speed)                        */
+#define GAME_CMD_STOP   0       // in the menu: motor off
+#define GAME_CMD_PLAY   1       // playing (starts calibration the first time)
+#define GAME_CMD_PAUSE  2       // paused: motor off, calibration kept
+
+/* Status message from Node 2 (CAN_ID_STATUS), 7 bytes:
+ *   byte 0: status (PI_STATUS_... in PIController.h)
+ *   byte 1: goals (ball through the IR beam) this game
+ *   byte 2-3: shots this game (low byte first)
+ *   byte 4-5: play time in seconds (low byte first)
+ *   byte 6: control mode Node 2 is using                                     */
 
 // Struct with bit timing information
 // See `can_init` for usage example
@@ -88,6 +106,10 @@ struct CanMsg {
 // Blocks if the bus does not receive the message (typically because one of the 
 // receiving nodes has not cleared a buffer)
 void can_tx(CanMsg m);
+
+// Send a CAN message WITHOUT waiting. Returns 0 (message skipped) if the
+// transmit mailbox is still busy, 1 if it was queued.
+uint8_t can_tx_try(CanMsg m);
 
 // Receive a CAN message.
 // Does not block. Returns 0 if there is no message, 1 otherwise

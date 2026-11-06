@@ -11,6 +11,7 @@
 #include "usart.h"
 #include <util/delay.h>
 #include <avr/pgmspace.h>
+#include <string.h>     // strlen()
 
 void oled_command(uint8_t cmd)
 {
@@ -26,8 +27,17 @@ void oled_command(uint8_t cmd)
 	spi_deselect_slave(SPI_SLAVE_DISPLAY);
 }
 
+/*
+* write_column: the column the next data byte will be written to.
+* In page addressing mode the OLED moves one column to the right after
+* every data byte, so we follow it here. oled_clear_rest() uses it to know
+* where the text ended.
+*/
+static uint8_t write_column = 0;
+
 void oled_data(uint8_t data)
 {
+	write_column++;
 	OLED_DC_PORT |= (1 << OLED_DC_PIN);    // D/C#=1 -> GDDRAM
 	spi_select_slave(SPI_SLAVE_DISPLAY);
 	spi_transfer_byte(data);
@@ -53,6 +63,7 @@ void oled_goto_page(uint8_t page)
 // Picks which column (0-127) to start writing at.
 void oled_goto_column(uint8_t col)
 {
+	write_column = col;
 	// Column needs 7 bits, so it's sent in two halves.
 	// Column needs 7 bits (0-127), but each command only carries 4 
 	// so the value is split into two halves and sent as two commands.
@@ -188,6 +199,341 @@ void oled_print(const char *str)
 		oled_data(0x00);   // 1-column gap between characters
 		str++;
 	}
+}
+
+/*
+* oled_print_inverted(): same as oled_print(), but black letters on a
+* white background (used for the highlight bar of the selected menu item).
+*
+* Each byte sent to the OLED is one column of 8 pixels in the current
+* page (bit = 1 -> pixel on). "~" flips all 8 bits, so lit pixels become
+* dark and dark pixels become lit -> the letter is drawn inverted.
+*/
+void oled_print_inverted(const char *str)
+{
+	while (*str) {
+		uint8_t index = *str - ' ';   // font tables start at ASCII space
+		for (uint8_t col = 0; col < 5; col++) {
+			oled_data(~pgm_read_byte(&font5[index][col]));   // ~ = inverted column
+		}
+		oled_data(0xFF);   // the 1-column gap is white too
+		str++;
+	}
+}
+
+/*
+* oled_fill_to_end(): fill the rest of the current page (row), from column
+* 'from' up to column 127, with the same byte.
+*   pattern = 0x00 -> black (erases whatever was there before)
+*   pattern = 0xFF -> white (finishes the highlight bar)
+*
+* In page addressing mode the column moves forward by itself after every
+* data byte, so we only have to send (128 - from) bytes.
+*/
+void oled_fill_to_end(uint8_t from, uint8_t pattern)
+{
+	for (uint8_t col = from; col < 128; col++) {
+		oled_data(pattern);
+	}
+}
+
+/*
+* oled_print_line(): print a whole row in one go and erase the rest of it.
+* Writing all 128 columns overwrites the old content, so there is no need
+* to clear the screen first -> no black flash (flicker).
+* Each character is 6 columns wide (5 font + 1 gap), so max 21 characters.
+*/
+void oled_print_line(uint8_t row, const char *str)
+{
+	oled_pos(row, 0);
+	oled_print(str);
+	oled_fill_to_end(6 * strlen(str), 0x00);
+}
+
+/*
+* oled_print_underlined(): same as oled_print(), but with a line under the
+* text. The 5x7 font only uses bits 0-6 of each column byte; bit 7 (the
+* bottom pixel of the page) is always empty, so "| 0x80" adds an underline
+* without touching the letter.
+*/
+void oled_print_underlined(const char *str)
+{
+	while (*str) {
+		uint8_t index = *str - ' ';   // font tables start at ASCII space
+		for (uint8_t col = 0; col < 5; col++) {
+			oled_data(pgm_read_byte(&font5[index][col]) | 0x80);
+		}
+		oled_data(0x80);   // the gap gets the underline too
+		str++;
+	}
+}
+
+/*
+* oled_print_title(): title centred in the row, with a line under it
+* across the FULL width (0x80 = only the bottom pixel of the column lit).
+*   width of the text = 6 columns per character
+*   start column      = (128 - width) / 2   -> centred
+*/
+void oled_print_title(uint8_t row, const char *str)
+{
+	uint8_t width = 6 * strlen(str);
+	uint8_t start = (128 - width) / 2;
+
+	oled_pos(row, 0);
+	for (uint8_t col = 0; col < start; col++) {
+		oled_data(0x80);                     // line left of the text
+	}
+	oled_print_underlined(str);              // text + line
+	oled_fill_to_end(start + width, 0x80);   // line right of the text
+}
+
+/*
+* oled_print_big(): print text with the 8x8 font (font8 in fonts.h).
+* Each character is 8 columns wide, so max 16 characters per row.
+*/
+void oled_print_big(const char *str)
+{
+	while (*str) {
+		uint8_t index = *str - ' ';   // font tables start at ASCII space
+		for (uint8_t col = 0; col < 8; col++) {
+			oled_data(pgm_read_byte(&font8[index][col]));
+		}
+		str++;
+	}
+}
+
+/* oled_print_big_inverted(): 8x8 font, black letters on white (selected letter) */
+void oled_print_big_inverted(const char *str)
+{
+	while (*str) {
+		uint8_t index = *str - ' ';
+		for (uint8_t col = 0; col < 8; col++) {
+			oled_data(~pgm_read_byte(&font8[index][col]));
+		}
+		str++;
+	}
+}
+
+/*
+* Burst writing (used by the games, which redraw a lot every frame).
+* oled_data() selects and deselects the display for EVERY byte. For a whole
+* row (128 bytes) it is faster to select once, send all bytes, deselect once:
+*     oled_pos(page, 0);
+*     oled_data_begin();
+*     for (...) oled_data_byte(b);
+*     oled_data_end();
+*/
+void oled_data_begin(void)
+{
+	OLED_DC_PORT |= (1 << OLED_DC_PIN);    // D/C#=1 -> data (GDDRAM)
+	spi_select_slave(SPI_SLAVE_DISPLAY);
+}
+
+void oled_data_byte(uint8_t data)
+{
+	write_column++;
+	spi_transfer_byte(data);
+}
+
+void oled_data_end(void)
+{
+	spi_deselect_slave(SPI_SLAVE_DISPLAY);
+}
+
+/* Big (8x8) text centred in a row: start column = (128 - 8 * length) / 2 */
+void oled_print_big_centered(uint8_t row, const char *str)
+{
+	uint8_t width = 8 * strlen(str);
+	oled_pos(row, (128 - width) / 2);
+	oled_print_big(str);
+}
+
+/* Normal (5x7) text centred in a row: 6 columns per character */
+void oled_print_centered(uint8_t row, const char *str)
+{
+	uint8_t width = 6 * strlen(str);
+	oled_pos(row, (128 - width) / 2);
+	oled_print(str);
+}
+
+/*
+* oled_progress_bar(): draw a bar over the full row, filled 'percent' %.
+*   column byte 0xFF = all 8 pixels on       -> ends of the frame + filled part
+*   column byte 0x81 = only top + bottom on  -> empty part (just the frame)
+* Inside the frame there are 124 columns (columns 2..125).
+*/
+void oled_progress_bar(uint8_t row, uint8_t percent)
+{
+	if (percent > 100) {
+		percent = 100;
+	}
+	uint8_t filled = (uint16_t)124 * percent / 100;   // multiply first, then divide
+
+	oled_pos(row, 0);
+	oled_data(0x00);                       // column 0: small margin
+	oled_data(0xFF);                       // column 1: left end of the frame
+	for (uint8_t col = 0; col < 124; col++) {
+		if (col < filled) {
+			oled_data(0xFF);               // filled part
+		}
+		else {
+			oled_data(0x81);               // empty part: only the frame
+		}
+	}
+	oled_data(0xFF);                       // column 126: right end of the frame
+	oled_data(0x00);                       // column 127: margin
+}
+
+/* ===========================================================================
+*  Text without printf
+*  ---------------------------------------------------------------------------
+*  printf()/snprintf() pull about 1.4 KB of library code into the program.
+*  The screens only need "text + a number", so these small functions do that
+*  job directly and keep the program memory free for the games.
+* ======================================================================== */
+
+/* Print one character with the 5x7 font (5 columns + 1 empty column) */
+static void print_char(char c)
+{
+	uint8_t index = c - ' ';                 // font tables start at ASCII space
+	for (uint8_t col = 0; col < 5; col++) {
+		oled_data(pgm_read_byte(&font5[index][col]));
+	}
+	oled_data(0x00);
+}
+
+/* Print text that is stored in flash, e.g. oled_print_P(PSTR("Time: ")) */
+void oled_print_P(PGM_P text)
+{
+	char c = pgm_read_byte(text);
+	while (c != '\0') {
+		print_char(c);
+		text++;
+		c = pgm_read_byte(text);
+	}
+}
+
+/*
+* oled_number_to_text(): write a number as decimal text, e.g. 427 -> "427".
+*   width = 0 : just the digits
+*   width = 5 : right-aligned with spaces in front, e.g. "  427"
+* text must have room for 6 characters (5 digits + end marker).
+* Returns the number of characters written.
+*/
+uint8_t oled_number_to_text(uint16_t value, uint8_t width, char *text)
+{
+	char digits[5];
+	uint8_t count = 0;
+
+	// Take the digits off from the right: 427 -> 7, 2, 4
+	do {
+		digits[count] = '0' + (value % 10);
+		value = value / 10;
+		count++;
+	} while (value > 0);
+
+	uint8_t length = 0;
+	while (count + length < width) {         // spaces in front (right-align)
+		text[length] = ' ';
+		length++;
+	}
+	while (count > 0) {                      // digits in the right order: 4, 2, 7
+		count--;
+		text[length] = digits[count];
+		length++;
+	}
+	text[length] = '\0';
+	return length;
+}
+
+/* Print a number with the 5x7 font (width: see oled_number_to_text) */
+void oled_print_number(uint16_t value, uint8_t width)
+{
+	char text[6];
+	oled_number_to_text(value, width, text);
+	oled_print(text);
+}
+
+/* Erase from where the last text ended to the end of the row.
+*  Use after printing a line, so old longer text does not stay visible. */
+void oled_clear_rest(void)
+{
+	while (write_column < 128) {
+		oled_data(0x00);
+	}
+}
+
+/* Whole row from flash text: print it, then erase the rest of the row */
+void oled_print_line_P(uint8_t row, PGM_P text)
+{
+	oled_pos(row, 0);
+	oled_print_P(text);
+	oled_clear_rest();
+}
+
+/* Flash text centred in a row (the rest of the row is erased first) */
+void oled_print_centered_P(uint8_t row, PGM_P text)
+{
+	uint8_t width = 6 * strlen_P(text);
+	oled_clear_line(row);
+	oled_pos(row, (128 - width) / 2);
+	oled_print_P(text);
+}
+
+/* Title from flash text: copied to RAM first, then the normal title function */
+void oled_print_title_P(uint8_t row, PGM_P text)
+{
+	char buf[22];
+	strncpy_P(buf, text, 21);
+	buf[21] = '\0';
+	oled_print_title(row, buf);
+}
+
+/* A number in the big 8x8 font, centred, e.g. the score on "Game Over" */
+void oled_print_big_number_centered(uint8_t row, uint16_t value)
+{
+	char text[6];
+	oled_number_to_text(value, 0, text);
+	oled_print_big_centered(row, text);
+}
+
+/*
+* oled_flash(): invert the whole screen for a moment.
+* 0xA7 = inverse display, 0xA6 = normal display (datasheet Table 9-1, p.27).
+* The OLED controller does this in hardware, so no pixels are redrawn.
+*/
+void oled_flash(void)
+{
+	oled_command(0xA7);
+	_delay_ms(80);
+	oled_command(0xA6);
+	_delay_ms(80);
+}
+
+/*
+* oled_intro(): intro animation shown when a game is started from the menu.
+*   big game title, small subtitle, loading bar that fills up (about 1.5 s),
+*   two flashes, then a clear screen for the game.
+* The title is a parameter, so every game can use the same animation:
+*   oled_intro("PING PONG");   oled_intro("CAR RACE");
+* Big font: max 16 characters.
+*/
+void oled_intro(const char *title)
+{
+	oled_clear();
+	oled_print_big_centered(1, title);
+	oled_print_centered(3, "TTK4155");
+	oled_print_centered(7, "Loading...");
+
+	for (uint8_t p = 0; p <= 100; p += 2) {   // 51 steps x 30 ms = about 1.5 s
+		oled_progress_bar(5, p);
+		_delay_ms(30);
+	}
+
+	_delay_ms(300);
+	oled_flash();
+	oled_flash();
+	oled_clear();
 }
 
 // Remembers where the next character will be drawn, so repeated

@@ -100,6 +100,26 @@ void can_tx(CanMsg m){
     CAN0->CAN_MB[txMailbox].CAN_MCR = (m.length << CAN_MCR_MDLC_Pos) | CAN_MCR_MTCR;
 }
 
+/*
+* can_tx_try(): like can_tx(), but NEVER waits.
+* can_tx() waits until the transmit mailbox is free. If Node 1 is switched
+* off, nobody acknowledges the frame, the mailbox stays busy, and can_tx()
+* would hang the whole main loop. can_tx_try() just skips the message
+* instead and returns 0 (the next status message comes 200 ms later anyway).
+* Returns 1 if the message was put in the mailbox.
+*/
+uint8_t can_tx_try(CanMsg m){
+    if(!(CAN0->CAN_MB[txMailbox].CAN_MSR & CAN_MSR_MRDY)){
+        return 0;                                   // mailbox still busy -> skip
+    }
+    CAN0->CAN_MB[txMailbox].CAN_MID = CAN_MID_MIDvA(m.id);
+    m.length = m.length > 8 ? 8 : m.length;
+    CAN0->CAN_MB[txMailbox].CAN_MDL = m.dword[0];
+    CAN0->CAN_MB[txMailbox].CAN_MDH = m.dword[1];
+    CAN0->CAN_MB[txMailbox].CAN_MCR = (m.length << CAN_MCR_MDLC_Pos) | CAN_MCR_MTCR;
+    return 1;
+}
+
 uint8_t can_rx(CanMsg* m){
     if(!(CAN0->CAN_MB[rxMailbox].CAN_MSR & CAN_MSR_MRDY)){
         return 0;
