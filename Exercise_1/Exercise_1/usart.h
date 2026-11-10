@@ -28,7 +28,7 @@
 
 
 #define F_CPU  4915200UL
-#define BAUD     9600UL
+#define BAUD     115200UL
 #define SRAM_START 0x1400
 #define SRAM_SIZE  0xC00      // 3072 bytes = 3 KiB
 #define UBRR_VAL ((F_CPU/(16UL*BAUD)) - 1)

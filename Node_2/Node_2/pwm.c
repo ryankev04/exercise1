@@ -54,36 +54,17 @@ void servo_init(void)
     PWM->PWM_CH_NUM[1].PWM_CDTY = SERVO_CDTY_CENTER;
     current_cdty = SERVO_CDTY_CENTER;
  
+    // 6. Turn channel 1 on 
+    PWM->PWM_ENA = PWM_ENA_CHID1;
+ 
     /*  Connect pin PB13 to the PWM (done last, so the servo only ever
      *    sees a fully configured signal).
      *      PIO_ABSR bit = 1 -> peripheral B (PWMH1 is on peripheral B)
      *      PIO_PDR        -> take the pin away from normal GPIO           */
     PIOB->PIO_ABSR |= PIO_PB13;
     PIOB->PIO_PDR   = PIO_PB13;
-	servo_enable(0);
 }
-
-void servo_enable(uint8_t enabled)
-{
-    if (enabled) {
-        /* Return PB13 to the PWM peripheral. */
-        PIOB->PIO_ABSR |= PIO_PB13;
-        PIOB->PIO_PDR = PIO_PB13;
-
-        PWM->PWM_ENA = PWM_ENA_CHID1;
-    }
-    else {
-        PWM->PWM_DIS = PWM_DIS_CHID1;
-
-        /*
-         * Drive the signal LOW as GPIO.
-         * This removes the servo control pulses.
-         */
-        PIOB->PIO_CODR = PIO_PB13;
-        PIOB->PIO_OER = PIO_PB13;
-        PIOB->PIO_PER = PIO_PB13;
-    }
-}
+ 
 
 // Step 2: change the pulse, with safety limits                       
 

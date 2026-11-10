@@ -142,12 +142,6 @@
     <Compile Include="ADC.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="audio_protocol.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="audio_ui.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="can.c">
       <SubType>compile</SubType>
     </Compile>
@@ -160,12 +154,6 @@
     <Compile Include="Can2515.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="car.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="car.h">
-      <SubType>compile</SubType>
-    </Compile>
     <Compile Include="Decoder.c">
       <SubType>compile</SubType>
     </Compile>
@@ -173,12 +161,6 @@
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="fonts.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="hof.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="hof.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Io.c">

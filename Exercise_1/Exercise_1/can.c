@@ -23,7 +23,6 @@
 #include "Can2515.h"
 #include "Menu.h"
 #include<util/delay.h>
-#include <avr/pgmspace.h>   // printf_P / PSTR: keep the text in flash, not RAM
 
 // Transmit buffer 0 registers (p.18-21)
 #define TXB0CTRL  0x30
@@ -89,17 +88,16 @@ uint8_t  can_send(const can_message_t *msg){
 	return 0;
 }
 
-void can_send_joystick(uint8_t x, uint8_t y, uint8_t button_joy, nav_event_t nav, uint8_t button_id_right,
-                       uint8_t game_cmd, uint8_t control_mode, uint8_t audio){
+void can_send_joystick(uint8_t x, uint8_t y, uint8_t button_joy, nav_event_t nav, uint8_t button_id_right){
 	can_message_t msg = {
 		.id = CAN_ID_JOYSTICK,
-		.length = 8,
-		.data = {x, y, button_joy, nav, button_id_right, game_cmd, control_mode, audio}
+		.length = 5,
+		.data = {x, y, button_joy, nav, button_id_right}
 	};
-	/* If TXB0 is still busy (e.g. Node 2 is off, so nobody acknowledges),
-	 * the message is simply skipped; the next one comes a few ms later.
-	 * (No printf here: printing on every loop would slow the menu down a lot.) */
-	can_send(&msg);
+	if (can_send(&msg)){
+		printf("can_send: Error: Could not send message\n");
+	}
+	else {}
 }
 /************************************************************************/
 /*
@@ -206,11 +204,11 @@ void can_test(void){
 		.length = 3,
 		 .data = { 'H', 'i', '!' } };
 	if (can_send(&tx1) == 0) {
-		printf_P(PSTR("Sent id: 0x%03X, len=%d\n"), tx1.id, tx1.length);
+		printf("Sent id: 0x%03X, len=%d\n", tx1.id, tx1.length);
 		_delay_ms(10);
-		printf_P(PSTR("TXB0CTRL=%02X CANINTF=%02X TEC=%u REC=%u EFLG=%02X\n"), mcp2515_read(0x30), mcp2515_read(0x2C), mcp2515_read(0x1C), mcp2515_read(0x1D), mcp2515_read(0x2D));
+		printf("TXB0CTRL=%02X CANINTF=%02X TEC=%u REC=%u EFLG=%02X\n", mcp2515_read(0x30), mcp2515_read(0x2C), mcp2515_read(0x1C), mcp2515_read(0x1D), mcp2515_read(0x2D));
 	} else {
-		printf_P(PSTR("Send failed: TXB0 stuck (no ACK from Node 2)\n"));
+		printf("Send failed: TXB0 stuck (no ACK from Node 2)\n");
 	}
 }
 /************************************************************************/

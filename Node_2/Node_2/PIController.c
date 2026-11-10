@@ -55,16 +55,6 @@ static volatile int32_t homing_progress_count;		//
 static volatile uint32_t backoff_start_ms;
 
 static volatile uint8_t stop_reason = 0;
-
-/* ---- Game control from Node 1 (menu "Ping Pong") ---------------------- */
-static volatile uint8_t auto_activate = 0; // after calibration: 0 = stay stopped, 1 = POSITION, 2 = SPEED
-static volatile uint8_t calib_failed = 0;  // 1 = the last calibration did not succeed
-static volatile uint8_t joy_x = 126;       // newest raw joystick X, used in SPEED mode
-
-#define SPEED_DEADBAND  10   // joystick noise around the centre must not move the motor
-#define SPEED_JOY_RANGE 75   // biggest distance from the centre (201 - 126)
-#define SPEED_END_MARGIN 400 // speed mode: no driving towards an end closer than this
-                             // (bigger than MARGIN: without PI the carriage coasts a bit)
 // 0 = none
 // 1 = CAN timeout
 // 2 = position outside limits
@@ -76,8 +66,7 @@ enum{
 	JOG,		//Brief motor-direction test with an automatic deadline
 	HOMING,		//Autonomous motor management. Used during calibration. 
 	BACKOFF,	//Autonomous motor management. Used during calibration. 
-	ACTIVE,		//Controller is running (position control: joystick = where the carriage should be).
-	SPEED		//Speed control: joystick = how fast and which way (no PI, like exercise task 3).
+	ACTIVE		//Controller is running.
 };
 
 static int32_t clamp(int32_t x, int32_t low, int32_t high){
@@ -158,7 +147,6 @@ void PIControl_joystick(uint8_t x, uint32_t now_ms){
 														//			this defensive programming measure will prevent the motor from flying. 
 	
 	requested = new_pos;	//Store the new requested position
-	joy_x = x;				//Raw (clamped) X for SPEED mode
 	last_rx = now_ms;		//Store when the message arrived.
 	have_rx = 1;			//Confirm received message. If any of these three steps have a significant delay, like an interrupt, that can cause issues!
 	
@@ -238,8 +226,6 @@ void PIControl_tick(uint32_t tick_now){
 		if ((uint32_t)(tick_now - homing_start_ms) > 5000){
 			drive(0);
 			calibrated = 0;
-			calib_failed = 1;		//Tell Node 1 the calibration failed
-			auto_activate = 0;		//...and never start the motor by itself
 			mode = STOPPED;
 			return;
 		}
@@ -250,25 +236,11 @@ void PIControl_tick(uint32_t tick_now){
 		if (pos >= BACKOFF_POSITION){
 			stop();
 			calibrated = (pos <= TRAVEL - MARGIN); //As long as the position is within bounds, the carriage is calibrated. 
-			if (!calibrated) {
-				calib_failed = 1;
-			}
-			else if (auto_activate == 1) {		//Game started from Node 1 in POSITION mode: go by itself
-				target = pos;
-				integral = 0;
-				mode = ACTIVE;
-			}
-			else if (auto_activate == 2) {		//Game started from Node 1 in SPEED mode
-				mode = SPEED;
-			}
-			auto_activate = 0;
 			return;
 		}
 		if ((uint32_t)(tick_now - backoff_start_ms) >= BACKOFF_TIMEOUT_MS // If time elapsed is greater than timeout,
 		|| pos < -MARGIN){													//or position is out of bounds.
 			calibrated = 0;
-			calib_failed = 1;		//Moving the wrong way or not at all: the motor check failed
-			auto_activate = 0;
 			stop();
 			return;
 		}
@@ -297,24 +269,6 @@ void PIControl_tick(uint32_t tick_now){
 		stop();
 		return;
 	}
-	/*
-	* SPEED mode: the joystick sets speed and direction directly (open loop),
-	* but the encoder is still used as a safety limit near both ends.
-	*   x = 126 -> stop,  x = 201 -> full speed right,  x = 54 -> full speed left
-	*/
-	if (mode == SPEED){
-		int32_t diff = (int32_t)joy_x - 126;
-		if (diff > -SPEED_DEADBAND && diff < SPEED_DEADBAND) {
-			diff = 0;
-		}
-		int32_t effort = diff * CONTROL_MAX_DUTY / SPEED_JOY_RANGE;	//Multiply first, then divide
-		if ((pos <= SPEED_END_MARGIN && effort < 0) || (pos >= TRAVEL-SPEED_END_MARGIN && effort > 0)) {
-			effort = 0;		//Do not drive further into an end of the track
-		}
-		drive(effort);
-		return;
-	}
-
 	int32_t delta = clamp(requested-target, -TARGET_STEP, TARGET_STEP); //Requested = position selected by the joystick. Target = position the controller currently pursues.
 																			//The difference between the two tells us how far the target needs to move. 
 																			//clamp() limits that change to +/-TARGET_STEP per update.
@@ -364,70 +318,5 @@ PIControl_print();
 */
 /************************************************************************/
 
-/************************************************************************/
-/*
-Game control, called from main.c when Node 1 changes the game state.
-These replace typing C / V / A in the terminal.
-*/
-/************************************************************************/
 
-/* Start a game: calibrate (homing + backoff), then go ACTIVE or SPEED by itself.
- * speed_mode: 0 = position control (PI), 1 = speed control.                 */
-void PIControl_start_game(uint8_t speed_mode)
-{
-	stop();							//From any state to STOPPED ('C' needs STOPPED)
-	verified = 1;					//Polarity -1 is known to be correct for our setup
-	calib_failed = 0;
-	auto_activate = speed_mode ? 2 : 1;
-	PIControl_command('C');			//Start homing; PIControl_tick() does the rest
-}
 
-/* Pause: stop the motor but keep the calibration. */
-void PIControl_pause(void)
-{
-	auto_activate = 0;
-	stop();
-}
-
-/* Resume after a pause: no new calibration needed. */
-void PIControl_resume(uint8_t speed_mode)
-{
-	if (!calibrated) {				//Should not happen, but then calibrate again
-		PIControl_start_game(speed_mode);
-		return;
-	}
-	if (mode != STOPPED) {
-		return;						//Already running
-	}
-	if (speed_mode) {
-		mode = SPEED;
-	}
-	else {
-		int32_t pos = encoder_read() - origin;
-		target = clamp(pos, MARGIN, TRAVEL-MARGIN);
-		integral = 0;
-		mode = ACTIVE;
-	}
-}
-
-/* Stop the game (back to the menu on Node 1). */
-void PIControl_stop_game(void)
-{
-	auto_activate = 0;
-	stop();
-}
-
-/* Short status code for Node 1 (sent in the status CAN message). */
-uint8_t PIControl_status(void)
-{
-	switch (mode) {
-		case HOMING:  return PI_STATUS_CALIBRATING;
-		case BACKOFF: return PI_STATUS_VERIFYING;
-		case ACTIVE:  return PI_STATUS_POSITION;
-		case SPEED:   return PI_STATUS_SPEED;
-		default:      break;
-	}
-	if (calib_failed) return PI_STATUS_FAILED;
-	if (calibrated)   return PI_STATUS_READY;
-	return PI_STATUS_IDLE;
-}

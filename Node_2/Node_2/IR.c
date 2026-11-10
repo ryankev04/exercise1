@@ -19,20 +19,6 @@ static volatile uint16_t score    = 0;   // number of goals
 static volatile uint8_t  new_goal = 0;   // 1 = goal happened, main has not printed it yet
 static uint8_t was_blocked = 0;          // state from the previous millisecond
 
-/*
- * Debounce + hold-off (Ping Pong has lives now, so one goal must count once):
- *   IR_DEBOUNCE_MS    : the beam must be blocked this many ms in a row
- *                       (a single noisy ADC reading is not a goal)
- *   IR_GOAL_HOLDOFF_MS: after a goal, ignore the beam for this long
- *                       (the ball bouncing in the beam is not a new goal)
- * IR_update() runs every 1 ms, so counting calls = counting milliseconds.
- */
-#define IR_DEBOUNCE_MS      5
-#define IR_GOAL_HOLDOFF_MS  2000
-
-static uint8_t  blocked_ms = 0;          // how long the beam has been blocked
-static uint16_t holdoff_ms = 0;          // > 0: goals are ignored for this many more ms
-
 /* Reads the ADC and updates the state  */
 uint8_t IR_is_blocked(void)
 {
@@ -52,23 +38,9 @@ void IR_update(void)
 {
     uint8_t now_blocked = IR_is_blocked();
 
-    if (holdoff_ms > 0) {
-        holdoff_ms--;
-    }
-
-    // Count how many ms in a row the beam has been blocked (max 255)
-    if (now_blocked) {
-        if (blocked_ms < 255) blocked_ms++;
-    } else {
-        blocked_ms = 0;
-    }
-
-    // Goal = blocked for exactly IR_DEBOUNCE_MS (counted once per block),
-    //        and not within the hold-off time of the last goal
-    if (blocked_ms == IR_DEBOUNCE_MS && holdoff_ms == 0) {
+    if (now_blocked == 1 && was_blocked == 0) {   // clear -> BLOCKED = goal
         score++;
         new_goal = 1;
-        holdoff_ms = IR_GOAL_HOLDOFF_MS;
     }
     was_blocked = now_blocked;
 }
