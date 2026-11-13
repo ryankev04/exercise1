@@ -10,15 +10,16 @@
 
 #include <stdint.h>
 
-#define SERVO_CPRD         52500   /* 20 ms   = 0.020  s * 2 625 000 */
-#define SERVO_CDTY_MIN     2363    /* 0.9 ms  = 0.0009 s * 2 625 000 = 2362.5, rounded UP   */
-#define SERVO_CDTY_CENTER  3937    /* 1.5 ms  = 0.0015 s * 2 625 000 = 3937.5               */
-#define SERVO_CDTY_MAX     5512    /* 2.1 ms  = 0.0021 s * 2 625 000 = 5512.5, rounded DOWN */
+#define SERVO_CPRD         52500 // 20 ms   = 0.020  s * 2 625 000
+#define SERVO_CDTY_MIN     2363  // 0.9 ms  = 0.0009 s * 2 625 000 = 2362.5, rounded UP
+#define SERVO_CDTY_CENTER  3937  // 1.5 ms  = 0.0015 s * 2 625 000 = 3937.5
+#define SERVO_CDTY_MAX     5512  // 2.1 ms  = 0.0021 s * 2 625 000 = 5512.5, rounded DOWN
 
 void servo_init(void);                     
 void servo_set_cdty(uint32_t cdty);        
 void servo_set_from_joystick(uint8_t x);  
 uint32_t servo_get_cdty(void);
+void servo_enable(uint8_t enabled);
 
 
-#endif  //PWM_H_
+#endif // PWM_H_

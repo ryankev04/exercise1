@@ -3,7 +3,6 @@
  *
  * Created: 13.10.2026 14:50:20
  *  Author: ngabo
- * See ir.h for what each step does and how to tune the settings.
  */
 #include "sam.h"
 #include "IR.h"
@@ -11,15 +10,20 @@
 #include <stdio.h>
  
  
-#define IR_TH_BLOCK  800    // below this -> beam is blocked
-#define IR_TH_CLEAR  1600   // above this -> beam is clear again
+#define IR_TH_BLOCK  800  // below this -> beam is blocked
+#define IR_TH_CLEAR  1600 // above this -> beam is clear again
 
-static volatile uint8_t  blocked  = 0;   // current state (changed in the interrupt)
-static volatile uint16_t score    = 0;   // number of goals
-static volatile uint8_t  new_goal = 0;   // 1 = goal happened, main has not printed it yet
-static uint8_t was_blocked = 0;          // state from the previous millisecond
+static volatile uint8_t  blocked  = 0; // current state (changed in the interrupt)
+static volatile uint16_t score    = 0; // number of goals
+static volatile uint8_t  new_goal = 0; // Latches an unconsumed goal indication.
+static uint8_t was_blocked = 0;        // Last blocked state assigned by IR_update().
 
-/* Reads the ADC and updates the state  */
+#define IR_DEBOUNCE_MS      5    // Consecutive blocked updates required for a goal.
+#define IR_GOAL_HOLDOFF_MS  2000 // Timer updates between eligible goals.
+
+static uint8_t  blocked_ms = 0; // how long the beam has been blocked
+static uint16_t holdoff_ms = 0; // > 0: goals are ignored for this many more ms
+
 uint8_t IR_is_blocked(void)
 {
     uint16_t value = adc_read(7);
@@ -32,20 +36,49 @@ uint8_t IR_is_blocked(void)
     }
     return blocked;
 }
+/************************************************************************/
+/*
+ * IR_is_blocked(): Samples ADC channel 7 and updates the cached beam
+ * state. A reading below IR_TH_BLOCK marks it blocked. A reading above
+ * IR_TH_CLEAR marks it clear. Between the thresholds, including the
+ * endpoints, the previous state is retained.
+ */
+/************************************************************************/
 
-/* Called from TC0_Handler every 1 ms. NO printf here! */
 void IR_update(void)
 {
     uint8_t now_blocked = IR_is_blocked();
 
-    if (now_blocked == 1 && was_blocked == 0) {   // clear -> BLOCKED = goal
+    if (holdoff_ms > 0) {
+        holdoff_ms--;
+    }
+
+    // Count how many ms in a row the beam has been blocked (max 255)
+    if (now_blocked) {
+        if (blocked_ms < 255) blocked_ms++;
+    } else {
+        blocked_ms = 0;
+    }
+
+    // Goal = blocked for exactly IR_DEBOUNCE_MS (counted once per block),
+    //        and not within the hold-off time of the last goal
+    if (blocked_ms == IR_DEBOUNCE_MS && holdoff_ms == 0) {
         score++;
         new_goal = 1;
+        holdoff_ms = IR_GOAL_HOLDOFF_MS;
     }
     was_blocked = now_blocked;
 }
+/************************************************************************/
+/*
+ * IR_update(): Runs in the 1 ms timer interrupt. Counts consecutive
+ * blocked samples and records a goal on the fifth sample if the
+ * hold-off has expired. The goal increments the score, latches a
+ * pending event, and starts a new hold-off. A blockage that reaches
+ * five samples during hold-off cannot score later in that same block.
+ */
+/************************************************************************/
 
-/* Called from main: returns 1 once per goal */
 uint8_t IR_goal_happened(void)
 {
     if (new_goal == 1) {
@@ -54,14 +87,24 @@ uint8_t IR_goal_happened(void)
     }
     return 0;
 }
+/************************************************************************/
+/*
+ * IR_goal_happened(): Returns 1 and clears the pending goal flag if it
+ * was set. The flag indicates an event and does not accumulate a count.
+ * Returns 0 when no goal is pending.
+ */
+/************************************************************************/
 
 uint16_t IR_get_score(void)
 {
     return score;
 }
+/************************************************************************/
+/*
+ * IR_get_score(): Returns the accumulated goal count.
+ */
+/************************************************************************/
 
-/* For testing from main: prints the value and the state.
- * Only READS 'blocked', the interrupt is the one that changes it. */
 void IR_test(void)
 {
     uint16_t value = adc_read(7);
@@ -73,4 +116,11 @@ void IR_test(void)
         printf("IR value = %u  (%lu mV)  clear\r\n", value, (unsigned long)mv);
     }
 }
+/************************************************************************/
+/*
+ * IR_test(): Prints the raw ADC reading, a millivolt estimate scaled to
+ * 3300 mV, and the cached beam state. This diagnostic leaves the beam
+ * state unchanged.
+ */
+/************************************************************************/
 

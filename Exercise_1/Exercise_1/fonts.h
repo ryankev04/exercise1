@@ -5,10 +5,13 @@
  *  Author: ngabo
  */ 
 /*
- * fonts.h
+ * OLED glyph tables in AVR program flash. Each table covers the 95
+ * printable ASCII characters from space (0x20) to tilde (0x7E).
+ * The glyph index is the character code minus 0x20.
  *
- * Library of fonts
- * Large: 8x8, normal: 5x7 and small: 4x7
+ * Each byte represents one vertical column, with bit 0 at the top
+ * of the OLED page. Columns are stored left to right. Use
+ * pgm_read_byte() to fetch a column from PROGMEM.
  */
 #ifndef FONTS_H_
 #define FONTS_H_
@@ -16,9 +19,9 @@
 
 #include <avr/pgmspace.h>
 
-// Font 8x8 - Large
+// Large font: eight columns per glyph, used for big OLED text.
 const unsigned char PROGMEM font8[95][8] = {
-	{0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000}, //
+	{0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
 	{0b00000000,0b00000110,0b01011111,0b01011111,0b00000110,0b00000000,0b00000000,0b00000000}, // !
 	{0b00000000,0b00000111,0b00000111,0b00000000,0b00000111,0b00000111,0b00000000,0b00000000}, // "
 	{0b00010100,0b01111111,0b01111111,0b00010100,0b01111111,0b01111111,0b00010100,0b00000000}, // #
@@ -115,9 +118,9 @@ const unsigned char PROGMEM font8[95][8] = {
 	{0b00000010,0b00000011,0b00000001,0b00000011,0b00000010,0b00000011,0b00000001,0b00000000}, // ~
 };
 
-// Font 5x7 - normal
+// Normal font: five columns per glyph, used for standard OLED text.
 const unsigned char PROGMEM font5[95][5] = {
-	{0b00000000,0b00000000,0b00000000,0b00000000,0b00000000}, //
+	{0b00000000,0b00000000,0b00000000,0b00000000,0b00000000},
 	{0b00000000,0b00000000,0b01011111,0b00000000,0b00000000}, // !
 	{0b00000000,0b00000111,0b00000000,0b00000111,0b00000000}, // "
 	{0b00010100,0b01111111,0b00010100,0b01111111,0b00010100}, // #
@@ -214,9 +217,9 @@ const unsigned char PROGMEM font5[95][5] = {
 	{0b00000010,0b00000001,0b00000011,0b00000010,0b00000001}, // ~
 	};
 
-// Font 4x6 - Small
+// Compact font: four columns per glyph, stored in eight-bit OLED columns.
 const unsigned char PROGMEM font4[95][4] = {
-		{0b00000000,0b00000000,0b00000000,0b00000000}, //
+		{0b00000000,0b00000000,0b00000000,0b00000000},
 		{0b00000000,0b01011100,0b00000000,0b00000000}, // !
 		{0b00001100,0b00000000,0b00001100,0b00000000}, // "
 		{0b01111100,0b00101000,0b01111100,0b00101000}, // #

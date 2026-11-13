@@ -2,18 +2,18 @@
 // UART is connected to the ATmega16U2 on the Arduino, which acts as a USB serial device.
 // This module hooks into the stdio functions, by spoofing several system calls
 //
-// Unfortunately, for some unknown reason `scanf` does not work as expected. Use 
+// Unfortunately, for some unknown reason `scanf` does not work as expected. Use
 // `uart_flush` and `sscanf` instead (see example below)
 //
 // Internally, receiving is handled with interrupts and a ring buffer, so no characters
-// are lost, until the buffer is full. If necessary, you can change this buffer size in 
+// are lost, until the buffer is full. If necessary, you can change this buffer size in
 // uart.c
 
 #ifndef UART_H_
 #define UART_H_
 
 #define F_CPU 84000000
-#define BAUD  115200       // set your terminal (PuTTY/Tera Term) to the same
+#define BAUD  115200 // set your terminal (PuTTY/Tera Term) to the same
 // Initialize. Hooks stdio functions (like `printf`)
 void uart_init(uint32_t cpufreq, uint32_t baudrate);
 
@@ -37,4 +37,4 @@ uint8_t uart_rx(uint8_t* val);
 //    }
 int uart_flush(char* buf, int len);
 
-   #endif //UART_H_
+   #endif // UART_H_

@@ -12,4 +12,4 @@
 void encoder_init (void);
 int32_t encoder_read(void);
 
-#endif //ENCODER_H_
+#endif // ENCODER_H_

@@ -4,14 +4,14 @@
 
 typedef struct RingBuf RingBuf;
 struct RingBuf {
-    uint8_t buffer[1024];
-    int capacity;
+    uint8_t buffer[1024]; // Byte storage and the capacity used by push() and pop().
+    int capacity; // Unused field. The buffer array determines capacity.
     
-    int insertIdx;
-    int removeIdx;
-    int length;
+    int insertIdx; // Next slot written by the receive handler.
+    int removeIdx; // Next slot read by the consumer.
+    int length; // Number of unread bytes.
 };
-RingBuf ringBuf = {0};
+RingBuf ringBuf = {0}; // Receive FIFO, initially empty.
 
 
 int push(RingBuf* rb, uint8_t val){
@@ -23,6 +23,12 @@ int push(RingBuf* rb, uint8_t val){
     rb->length++;
     return 1;
 }
+/************************************************************************/
+/*
+ * push(): Appends one byte at the write index and wraps the index
+ * at the array boundary. Returns 0 if full, otherwise 1.
+ */
+/************************************************************************/
 
 int pop(RingBuf* rb, uint8_t* val){    
     if(!rb->length){
@@ -33,6 +39,12 @@ int pop(RingBuf* rb, uint8_t* val){
     rb->length--;
     return 1;
 }
+/************************************************************************/
+/*
+ * pop(): Removes the oldest queued byte into *val. Returns 0 if
+ * empty and leaves *val alone. Returns 1 after copying a byte.
+ */
+/************************************************************************/
 
 void uart_init(uint32_t cpufreq, uint32_t baudrate){
     PMC->PMC_PCER0 |= (1 << ID_UART);
@@ -56,15 +68,34 @@ void uart_init(uint32_t cpufreq, uint32_t baudrate){
     NVIC_EnableIRQ((IRQn_Type) ID_UART);
     
 }    
+/************************************************************************/
+/*
+ * uart_init(): Selects the UART pins on PA8 and PA9, enables RX
+ * and TX without parity, and sets the integer baud divisor.
+ * Enables receive-ready and error interrupts in the UART and NVIC.
+ */
+/************************************************************************/
 
 void uart_tx(uint8_t val){
     while(!(UART->UART_SR & UART_SR_TXEMPTY)){}
     UART->UART_THR = val;
 }
+/************************************************************************/
+/*
+ * uart_tx(): Waits for TXEMPTY, then loads one byte into the
+ * transmit holding register.
+ */
+/************************************************************************/
 
 uint8_t uart_rx(uint8_t* val){
     return pop(&ringBuf, val);
 }    
+/************************************************************************/
+/*
+ * uart_rx(): Tries to read one buffered byte. Returns 1 on success
+ * or 0 when no byte is queued.
+ */
+/************************************************************************/
 
 int uart_flush(char* buf, int len){
     int r = 0;
@@ -76,13 +107,20 @@ int uart_flush(char* buf, int len){
     }    
     return r;
 }
+/************************************************************************/
+/*
+ * uart_flush(): Copies up to len queued bytes into buf, stopping
+ * when the receive queue is empty. Returns the number copied.
+ * The caller supplies any string terminator it needs.
+ */
+/************************************************************************/
 
 
 void UART_Handler(){
     
     uint32_t status = UART->UART_SR;
     
-    // Errors: Reset UART
+    // Clear error status and keep receive and transmit enabled.
     if(status & (UART_SR_OVRE | UART_SR_FRAME | UART_SR_PARE)){
         UART->UART_CR = UART_CR_RXEN | UART_CR_TXEN | UART_CR_RSTSTA;
     }
@@ -95,6 +133,13 @@ void UART_Handler(){
     }
     
 } 
+/************************************************************************/
+/*
+ * UART_Handler(): Takes a snapshot of UART status, clears any
+ * reported receive errors, and queues the received byte if ready.
+ * If the receive FIFO is full, drops the byte and prints a warning.
+ */
+/************************************************************************/
 
 
 
@@ -116,35 +161,76 @@ void *_sbrk(int incr){
 
     return prev_heap;
 }
+/************************************************************************/
+/*
+ * _sbrk(): Returns the previous heap end and advances it by incr.
+ * The initial heap address comes from the linker symbol _end.
+ * This hook performs no memory-bound checks.
+ */
+/************************************************************************/
 
 int _close(int file){
     return -1;
 }
+/************************************************************************/
+/*
+ * _close(): Stub that returns failure without closing a device.
+ */
+/************************************************************************/
 
 int _fstat(int file, struct stat* st){
     st->st_mode = S_IFCHR;
     return 0;
 }
+/************************************************************************/
+/*
+ * _fstat(): Reports character-device mode in st_mode.
+ */
+/************************************************************************/
 
 int _isatty(int file){
     return 1;
 }
+/************************************************************************/
+/*
+ * _isatty(): Reports that the descriptor is a terminal.
+ */
+/************************************************************************/
 
 int _lseek(int file, int ptr, int dir){
     return 0;
 }
+/************************************************************************/
+/*
+ * _lseek(): Returns zero without changing a file position.
+ */
+/************************************************************************/
 
 __attribute__((naked)) void _exit(int status){
-    //__asm("BKPT #0");
 }
+/************************************************************************/
+/*
+ * _exit(): Empty termination hook with the naked attribute.
+ */
+/************************************************************************/
 
 void _kill(int pid, int sig){
     return;
 }
+/************************************************************************/
+/*
+ * _kill(): Stub with no signal handling.
+ */
+/************************************************************************/
 
 int _getpid(void){
     return -1;
 }
+/************************************************************************/
+/*
+ * _getpid(): Returns -1. No process ID is supplied.
+ */
+/************************************************************************/
 
 int _write(int file, char* ptr, int len){
     if(file > 1){
@@ -156,6 +242,12 @@ int _write(int file, char* ptr, int len){
     }
     return len;
 }
+/************************************************************************/
+/*
+ * _write(): Sends len bytes via the blocking UART transmit routine.
+ * Returns the byte count, or -1 for a descriptor greater than 1.
+ */
+/************************************************************************/
 
 int _read(int file, char* ptr, int len){
     if(file > 1){
@@ -172,6 +264,17 @@ int _read(int file, char* ptr, int len){
     }
     return nread;
 }
+/************************************************************************/
+/*
+ * _read(): Copies available UART bytes without waiting for more.
+ * Returns the count copied, or -1 for a descriptor greater than 1.
+ */
+/************************************************************************/
 
-
-   
+/************************************************************************/
+/*
+misc:
+ *
+ * __asm("BKPT #0");
+ */
+/************************************************************************/
