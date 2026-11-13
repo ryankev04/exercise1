@@ -135,7 +135,6 @@ int _lseek(int file, int ptr, int dir){
 }
 
 __attribute__((naked)) void _exit(int status){
-    //__asm("BKPT #0");
 }
 
 void _kill(int pid, int sig){
@@ -173,5 +172,10 @@ int _read(int file, char* ptr, int len){
     return nread;
 }
 
-
-   
+/************************************************************************/
+/*
+misc:
+ *
+ * __asm("BKPT #0");
+ */
+/************************************************************************/

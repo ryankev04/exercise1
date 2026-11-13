@@ -11,13 +11,13 @@
 #include <stdio.h>
  
  
-#define IR_TH_BLOCK  800    // below this -> beam is blocked
-#define IR_TH_CLEAR  1600   // above this -> beam is clear again
+#define IR_TH_BLOCK  800  // below this -> beam is blocked
+#define IR_TH_CLEAR  1600 // above this -> beam is clear again
 
-static volatile uint8_t  blocked  = 0;   // current state (changed in the interrupt)
-static volatile uint16_t score    = 0;   // number of goals
-static volatile uint8_t  new_goal = 0;   // 1 = goal happened, main has not printed it yet
-static uint8_t was_blocked = 0;          // state from the previous millisecond
+static volatile uint8_t  blocked  = 0; // current state (changed in the interrupt)
+static volatile uint16_t score    = 0; // number of goals
+static volatile uint8_t  new_goal = 0; // 1 = goal happened, main has not printed it yet
+static uint8_t was_blocked = 0;        // state from the previous millisecond
 
 /*
  * Debounce + hold-off (Ping Pong has lives now, so one goal must count once):
@@ -30,10 +30,9 @@ static uint8_t was_blocked = 0;          // state from the previous millisecond
 #define IR_DEBOUNCE_MS      5
 #define IR_GOAL_HOLDOFF_MS  2000
 
-static uint8_t  blocked_ms = 0;          // how long the beam has been blocked
-static uint16_t holdoff_ms = 0;          // > 0: goals are ignored for this many more ms
+static uint8_t  blocked_ms = 0; // how long the beam has been blocked
+static uint16_t holdoff_ms = 0; // > 0: goals are ignored for this many more ms
 
-/* Reads the ADC and updates the state  */
 uint8_t IR_is_blocked(void)
 {
     uint16_t value = adc_read(7);
@@ -46,8 +45,12 @@ uint8_t IR_is_blocked(void)
     }
     return blocked;
 }
+/************************************************************************/
+/*
+ * Reads the ADC and updates the state
+ */
+/************************************************************************/
 
-/* Called from TC0_Handler every 1 ms. NO printf here! */
 void IR_update(void)
 {
     uint8_t now_blocked = IR_is_blocked();
@@ -72,8 +75,12 @@ void IR_update(void)
     }
     was_blocked = now_blocked;
 }
+/************************************************************************/
+/*
+ * Called from TC0_Handler every 1 ms. NO printf here!
+ */
+/************************************************************************/
 
-/* Called from main: returns 1 once per goal */
 uint8_t IR_goal_happened(void)
 {
     if (new_goal == 1) {
@@ -82,14 +89,17 @@ uint8_t IR_goal_happened(void)
     }
     return 0;
 }
+/************************************************************************/
+/*
+ * Called from main: returns 1 once per goal
+ */
+/************************************************************************/
 
 uint16_t IR_get_score(void)
 {
     return score;
 }
 
-/* For testing from main: prints the value and the state.
- * Only READS 'blocked', the interrupt is the one that changes it. */
 void IR_test(void)
 {
     uint16_t value = adc_read(7);
@@ -101,4 +111,10 @@ void IR_test(void)
         printf("IR value = %u  (%lu mV)  clear\r\n", value, (unsigned long)mv);
     }
 }
+/************************************************************************/
+/*
+ * For testing from main: prints the value and the state.
+ * Only READS 'blocked', the interrupt is the one that changes it.
+ */
+/************************************************************************/
 

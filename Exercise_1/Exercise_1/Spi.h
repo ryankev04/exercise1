@@ -19,20 +19,20 @@
 
 #define SS_DISPLAY_DDR   DDRB
 #define SS_DISPLAY_PORT  PORTB
-#define SS_DISPLAY_PIN   PB4     // using the chip's "SS" pin here
+#define SS_DISPLAY_PIN   PB4 // using the chip's "SS" pin here
 
 #define SS_IO_DDR    DDRB
 #define SS_IO_PORT   PORTB
-#define SS_IO_PIN    PB0         // SS2
+#define SS_IO_PIN    PB0 // SS2
 
 #define SS_CAN_DDR   DDRB
 #define SS_CAN_PORT  PORTB
 #define SS_CAN_PIN   PB1
 
 typedef enum {
-	SPI_SLAVE_DISPLAY,   // DISP_CS -- the OLED's SSD1309 controller
-	SPI_SLAVE_IO,       // IO_CS -- the User-IO board's
-	SPI_SLAVE_CAN  // CAN_CS -- CAN of MCP2515
+	SPI_SLAVE_DISPLAY, // DISP_CS -- the OLED's SSD1309 controller
+	SPI_SLAVE_IO,      // IO_CS -- the User-IO board's
+	SPI_SLAVE_CAN      // CAN_CS -- CAN of MCP2515
 } spi_slave_t;
 
 void spi_master_init(void);
@@ -42,4 +42,4 @@ void spi_deselect_slave(spi_slave_t slave);
 uint8_t spi_transfer_byte (uint8_t data);
 void spi_write_bytes(const uint8_t *data, uint16_t len);
 void spi_read_bytes(uint8_t *buffer, uint16_t len);
-#endif //SPI_H_
+#endif // SPI_H_

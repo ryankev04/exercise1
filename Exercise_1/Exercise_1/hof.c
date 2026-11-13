@@ -65,7 +65,6 @@ uint16_t hof_best(uint8_t game)
 	return e.score;
 }
 
-/* Place this score would get (0 = first), or HOF_SIZE if it is not top 3 */
 static uint8_t rank_of(uint8_t game, uint16_t score)
 {
 	hof_entry_t e;
@@ -75,20 +74,24 @@ static uint8_t rank_of(uint8_t game, uint16_t score)
 	}
 	return HOF_SIZE;
 }
+/************************************************************************/
+/*
+ * Place this score would get (0 = first), or HOF_SIZE if it is not top 3
+ */
+/************************************************************************/
 
 uint8_t hof_qualifies(uint8_t game, uint16_t score)
 {
 	return score > 0 && rank_of(game, score) < HOF_SIZE;
 }
 
-/* Put a new entry at its place and move the lower ones down one step */
 static uint8_t insert(uint8_t game, const char name[3], uint16_t score)
 {
 	uint8_t rank = rank_of(game, score);
 	if (rank >= HOF_SIZE) return HOF_SIZE;
 
 	hof_entry_t e;
-	for (uint8_t i = HOF_SIZE - 1; i > rank; i--) {   // shift down: 2 <- 1, 1 <- 0 ...
+	for (uint8_t i = HOF_SIZE - 1; i > rank; i--) { // shift down: 2 <- 1, 1 <- 0 ...
 		read_entry(game, i - 1, &e);
 		write_entry(game, i, &e);
 	}
@@ -97,6 +100,11 @@ static uint8_t insert(uint8_t game, const char name[3], uint16_t score)
 	write_entry(game, rank, &e);
 	return rank;
 }
+/************************************************************************/
+/*
+ * Put a new entry at its place and move the lower ones down one step
+ */
+/************************************************************************/
 
 static PGM_P game_name(uint8_t game)
 {
@@ -106,16 +114,20 @@ static PGM_P game_name(uint8_t game)
 	return PSTR("Ping Pong (sec)");
 }
 
-/* Copy a text from flash (PSTR) into buf, so the normal OLED functions can
- * print it. Keeping screen text in flash saves the ATmega162's small RAM.  */
 static char *from_flash(char *buf, PGM_P text)
 {
 	strncpy_P(buf, text, 21);
 	buf[21] = '\0';
 	return buf;
 }
+/************************************************************************/
+/*
+ * Copy a text from flash (PSTR) into buf, so the normal OLED functions can
+ * print it. Keeping screen text in flash saves the ATmega162's small RAM.
+ */
+/************************************************************************/
 
-static uint8_t highlight = 0xFF;   // rank of the entry that was just added (shown inverted)
+static uint8_t highlight = 0xFF; // rank of the entry that was just added (shown inverted)
 
 void hof_draw(uint8_t game)
 {
@@ -130,13 +142,13 @@ void hof_draw(uint8_t game)
 		read_entry(game, i, &e);
 
 		// Build "1 ABC 12345" (11 characters = 88 pixels in the big 8x8 font)
-		buf[0] = '1' + i;                     // place: 1, 2 or 3
+		buf[0] = '1' + i; // place: 1, 2 or 3
 		buf[1] = ' ';
 		buf[2] = e.name[0];
 		buf[3] = e.name[1];
 		buf[4] = e.name[2];
 		buf[5] = ' ';
-		oled_number_to_text(e.score, 5, &buf[6]);   // 5 wide, right-aligned
+		oled_number_to_text(e.score, 5, &buf[6]); // 5 wide, right-aligned
 		oled_pos(3 + i, (128 - 8 * 11) / 2);
 		if (i == highlight) oled_print_big_inverted(buf);
 		else                oled_print_big(buf);
@@ -144,18 +156,20 @@ void hof_draw(uint8_t game)
 	oled_print_line(7, from_flash(buf, PSTR("U/D: Game    < Back")));
 }
 
-/* ---------------------------------------------------------------------------
+/************************************************************************/
+/*
  *  Initials entry: up/down = letter, right/click = next letter, left = back
- * ------------------------------------------------------------------------- */
+ */
+/************************************************************************/
 static uint8_t  entry_game;
 static uint16_t entry_score;
 static uint8_t  entry_pos;
-static char     entry_name[3] = { 'A', 'A', 'A' };   // remembers the last name used
+static char     entry_name[3] = { 'A', 'A', 'A' }; // remembers the last name used
 
 static void draw_entry(void)
 {
 	// Big letters, the one being edited is inverted (white box)
-	oled_pos(5, (128 - 8 * 5) / 2);              // "A B C" = 5 characters
+	oled_pos(5, (128 - 8 * 5) / 2); // "A B C" = 5 characters
 	for (uint8_t i = 0; i < 3; i++) {
 		char s[2] = { entry_name[i], '\0' };
 		if (i == entry_pos) oled_print_big_inverted(s);
@@ -191,7 +205,7 @@ uint8_t hof_entry_update(nav_event_t edge)
 {
 	char *c = &entry_name[entry_pos];
 
-	if (edge == NAV_UP) {                    // next letter: A -> B ... Z -> A
+	if (edge == NAV_UP) { // next letter: A -> B ... Z -> A
 		if (*c >= 'Z') {
 			*c = 'A';
 		}
@@ -199,7 +213,7 @@ uint8_t hof_entry_update(nav_event_t edge)
 			*c = *c + 1;
 		}
 	}
-	else if (edge == NAV_DOWN) {             // previous letter: B -> A ... A -> Z
+	else if (edge == NAV_DOWN) { // previous letter: B -> A ... A -> Z
 		if (*c <= 'A') {
 			*c = 'Z';
 		}
@@ -212,15 +226,15 @@ uint8_t hof_entry_update(nav_event_t edge)
 	}
 	else if (edge == NAV_RIGHT || edge == NAV_CLICK) {
 		entry_pos++;
-		if (entry_pos >= 3) {                    // all 3 letters done -> save
+		if (entry_pos >= 3) { // all 3 letters done -> save
 			highlight = insert(entry_game, entry_name, entry_score);
 			hof_draw(entry_game);
-			highlight = 0xFF;                    // only highlight this one time
+			highlight = 0xFF; // only highlight this one time
 			return 1;
 		}
 	}
 	else {
-		return 0;                                // nothing pressed
+		return 0; // nothing pressed
 	}
 	draw_entry();
 	return 0;

@@ -5,8 +5,8 @@
 
 #include <stdint.h>
 
-#define CAN_ID_JOYSTICK 0x100   // Node 1 -> Node 2: joystick, buttons, game command
-#define CAN_ID_STATUS   0x200   // Node 2 -> Node 1: motor status + game stats
+#define CAN_ID_JOYSTICK 0x100 // Node 1 -> Node 2: joystick, buttons, game command
+#define CAN_ID_STATUS   0x200 // Node 2 -> Node 1: motor status + game stats
 
 /* Joystick message from Node 1 (CAN_ID_JOYSTICK), 7 bytes:
  *   byte 0: joystick X        byte 1: joystick Y
@@ -14,9 +14,9 @@
  *   byte 4: right buttons (bit 4 = SR5 = shoot)
  *   byte 5: game command (GAME_CMD_...)
  *   byte 6: control mode  (0 = position, 1 = speed)                        */
-#define GAME_CMD_STOP   0       // in the menu: motor off
-#define GAME_CMD_PLAY   1       // playing (starts calibration the first time)
-#define GAME_CMD_PAUSE  2       // paused: motor off, calibration kept
+#define GAME_CMD_STOP   0 // in the menu: motor off
+#define GAME_CMD_PLAY   1 // playing (starts calibration the first time)
+#define GAME_CMD_PAUSE  2 // paused: motor off, calibration kept
 
 /* Status message from Node 2 (CAN_ID_STATUS), 7 bytes:
  *   byte 0: status (PI_STATUS_... in PIController.h)
@@ -31,12 +31,12 @@ typedef struct CanInit CanInit;
 __attribute__((packed)) struct CanInit {
     union {
         struct {
-            uint32_t phase2:4;  // Phase 2 segment
-            uint32_t propag:4;  // Propagation time segment
-            uint32_t phase1:4;  // Phase 1 segment
-            uint32_t sjw:4;     // Synchronization jump width
-            uint32_t brp:8;     // Baud rate prescaler
-            uint32_t smp:8;     // Sampling mode
+            uint32_t phase2:4; // Phase 2 segment
+            uint32_t propag:4; // Propagation time segment
+            uint32_t phase1:4; // Phase 1 segment
+            uint32_t sjw:4;    // Synchronization jump width
+            uint32_t brp:8;    // Baud rate prescaler
+            uint32_t smp:8;    // Sampling mode
         };
         uint32_t reg;
     };
@@ -79,7 +79,7 @@ struct Byte8 {
 //        uint8_t   b;
 //        float     c;
 //    } __attribute__((packed)) YourStruct ;
-//    
+//
 //    CanMsg m = (CanMsg){
 //        .id = 1,
 //        .length = sizeof(YourStruct),
@@ -102,8 +102,8 @@ struct CanMsg {
     };    
 };
 
-// Send a CAN message on the bus. 
-// Blocks if the bus does not receive the message (typically because one of the 
+// Send a CAN message on the bus.
+// Blocks if the bus does not receive the message (typically because one of the
 // receiving nodes has not cleared a buffer)
 void can_tx(CanMsg m);
 
@@ -120,5 +120,5 @@ void can_printmsg(CanMsg m);
 
 
 
-  #endif //CAN_H_
+  #endif // CAN_H_
 

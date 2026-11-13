@@ -12,29 +12,33 @@
 #include "Sram.h"
 
 #include <util/delay.h>
-//==== XMEM init
 
 void Xmem_init(void)
 {
-	SFIOR |= (1 << XMM2); //  release or reserved the jtag pins (PC7 - PC4)
-	MCUCR |= (1 << SRE); // enable Xmem
+	SFIOR |= (1 << XMM2); // release or reserved the jtag pins (PC7 - PC4)
+	MCUCR |= (1 << SRE);  // enable Xmem
 }
-
-
-//==========LATCH TEST========
+/************************************************************************/
+/*
+ * ==== XMEM init
+ */
+/************************************************************************/
 
 void Latch_test (void)
 {
 	for (uint8_t i = 0 ; i < 8; i++)
 	{
 		volatile uint8_t *addr = (uint8_t *)(SRAM_START +(1 << i));
-		*addr = 0xFF;   // data value is irrelevant here, no SRAM connected
+		*addr = 0xFF; // data value is irrelevant here, no SRAM connected
 		_delay_ms(300);
 	}
 }
+/************************************************************************/
+/*
+ * ==========LATCH TEST========
+ */
+/************************************************************************/
 
-
-//============ SRAM TEST ===========
 void SRAM_test(void)
 {
 	volatile char *ext_ram = (char *) SRAM_START; // Start address for the SRAM
@@ -69,11 +73,22 @@ void SRAM_test(void)
 	}
 	printf("SRAM test completed with \n%4d errors in write phase and \n%4d errors in retrieval phase\n\n", write_errors, retrieval_errors);
 }
+/************************************************************************/
+/*
+ * ============ SRAM TEST ===========
+ */
+/************************************************************************/
 
-/*void SRAM_single_test(void)
-{
-	volatile uint8_t *addr = (uint8_t *)0x1800;
-	*addr = 0xAA;
-	uint8_t result = *addr;
-	printf("Wrote 0xAA to 0x1800, read back: 0x%02X\n", result);
-}*/
+/************************************************************************/
+/*
+misc:
+ *
+ * void SRAM_single_test(void)
+ * {
+ * 	volatile uint8_t *addr = (uint8_t *)0x1800;
+ * 	*addr = 0xAA;
+ * 	uint8_t result = *addr;
+ * 	printf("Wrote 0xAA to 0x1800, read back: 0x%02X\n", result);
+ * }
+ */
+/************************************************************************/

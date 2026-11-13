@@ -2,7 +2,7 @@
 #define AUDIO_H
 #include <stdint.h>
 #include "audio_protocol.h"
-enum { FX_HIT=7, FX_LOW, FX_HIGH };
+enum { FX_HIT = 7, FX_LOW, FX_HIGH };
 void audio_init(uint32_t seed);
 void audio_snapshot(uint8_t packed);
 void audio_goal(uint16_t goals);

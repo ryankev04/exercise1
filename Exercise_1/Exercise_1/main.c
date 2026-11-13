@@ -7,8 +7,11 @@
 
 
 
-//========================================== INCLUDES
-
+/************************************************************************/
+/*
+ * ========================================== INCLUDES
+ */
+/************************************************************************/
 
 #include "usart.h"
 #include "Sram.h"
@@ -20,19 +23,18 @@
 #include "oled.h"
 #include "Io.h"
 #include "Menu.h"
-#include "car.h"      // Turbo Rush game
+#include "car.h" // Turbo Rush game
 #include "audio_ui.h"
-uint8_t audio_ui; /* one retained event token, no filenames/buffers on Node 1 */
-#include "hof.h"      // High Scores (top 3 per game in EEPROM)
+uint8_t audio_ui; // one retained event token, no filenames/buffers on Node 1
+#include "hof.h"  // High Scores (top 3 per game in EEPROM)
 #include <util/delay.h>
-#include <avr/pgmspace.h>   // PSTR(), strncpy_P(): text kept in flash, not RAM
+#include <avr/pgmspace.h> // PSTR(), strncpy_P(): text kept in flash, not RAM
 #include <string.h>
 
 
+/************************************************************************/
 /*
- * ============================================================================
  *  GAME FLOW (Node 1)
- * ============================================================================
  *
  *   MENU --Games/Ping Pong--> STARTING --Node 2 ready--> PLAYING
  *    ^                          |  SR6 = cancel            |  SR6
@@ -58,8 +60,8 @@ uint8_t audio_ui; /* one retained event token, no filenames/buffers on Node 1 */
  *
  *  Text that is only shown on the screen is kept in FLASH with PSTR(...),
  *  because the ATmega162 only has 1 KB of RAM.
- * ============================================================================
  */
+/************************************************************************/
 
 /* Status codes from Node 2 (byte 0 of the status message, PIController.h) */
 #define N2_IDLE          0
@@ -77,77 +79,77 @@ uint8_t audio_ui; /* one retained event token, no filenames/buffers on Node 1 */
  */
 #define CAN_SELFTEST  0
 
-#define SR6_MASK  0x20            // right button 6: pause / cancel / back
-#define SR5_MASK  0x10            // right button 5: shoot (Ping Pong) / boost (Turbo Rush)
-#define PP_LIVES  3               // Ping Pong: game over after this many goals
+#define SR6_MASK  0x20 // right button 6: pause / cancel / back
+#define SR5_MASK  0x10 // right button 5: shoot (Ping Pong) / boost (Turbo Rush)
+#define PP_LIVES  3    // Ping Pong: game over after this many goals
 
 /*
  * Node 1 has no millisecond timer, so time is counted in main-loop passes.
  * One pass is about 5-10 ms (5 ms delay + SPI traffic), so these are rough.
  */
-#define STALE_LOOPS           60  // ignore Node 2 status for ~0.5 s after starting
-#define NODE2_TIMEOUT_LOOPS  300  // ~2-3 s without a status message = Node 2 not found
-#define SOUND_SEND_LOOPS      20  // send the sound settings again every ~0.1-0.2 s
+#define STALE_LOOPS           60 // ignore Node 2 status for ~0.5 s after starting
+#define NODE2_TIMEOUT_LOOPS  300 // ~2-3 s without a status message = Node 2 not found
+#define SOUND_SEND_LOOPS      20 // send the sound settings again every ~0.1-0.2 s
 #define SOUND_VOLUME_MAX      10
 
 typedef enum {
-	GS_MENU,        // main menu, Games, Options (motor off)
-	GS_ABOUT,       // About page
-	GS_STARTING,    // waiting for Node 2: calibrating -> verifying -> arming
-	GS_PLAYING,     // game running, joystick controls the motor
-	GS_PAUSED,      // pause menu
-	GS_STATS,       // statistics page (from the pause menu)
-	GS_CAR,         // Turbo Rush running
-	GS_CAR_PAUSED,  // Turbo Rush paused
-	GS_GAME_OVER,   // result screen (both games)
-	GS_HOF_ENTRY,   // typing initials for a new high score
-	GS_HOF_VIEW,    // High Scores table
-	GS_SOUND        // Options -> Sound: song, volume, mute
+	GS_MENU,       // main menu, Games, Options (motor off)
+	GS_ABOUT,      // About page
+	GS_STARTING,   // waiting for Node 2: calibrating -> verifying -> arming
+	GS_PLAYING,    // game running, joystick controls the motor
+	GS_PAUSED,     // pause menu
+	GS_STATS,      // statistics page (from the pause menu)
+	GS_CAR,        // Turbo Rush running
+	GS_CAR_PAUSED, // Turbo Rush paused
+	GS_GAME_OVER,  // result screen (both games)
+	GS_HOF_ENTRY,  // typing initials for a new high score
+	GS_HOF_VIEW,   // High Scores table
+	GS_SOUND       // Options -> Sound: song, volume, mute
 } game_state_t;
 
 static game_state_t gs = GS_MENU;
-static uint8_t  control_mode = 0;      // 0 = position (PI), 1 = speed
-static uint8_t  start_failed = 0;      // 1 = calibration failed / Node 2 not found
-static uint8_t  start_stage  = 0xFF;   // checklist step shown on the STARTING screen
-static uint8_t  start_bar    = 0;      // animated progress bar, 0..100 %
-static uint16_t state_loops  = 0;      // loop passes since entering the current state
-static uint8_t  wait_neutral = 0;      // 1 = ignore the stick until it is centred again
-static uint8_t  last_game    = HOF_TURBO;  // which game the game-over screen belongs to
-static uint8_t  hof_game     = HOF_TURBO;  // which table the High Scores shows
-static uint8_t  hof_from_menu = 0;     // 1 = High Scores opened from the main menu
-static uint16_t loop_count   = 0;      // counts every pass (used as a random seed)
+static uint8_t  control_mode = 0;         // 0 = position (PI), 1 = speed
+static uint8_t  start_failed = 0;         // 1 = calibration failed / Node 2 not found
+static uint8_t  start_stage  = 0xFF;      // checklist step shown on the STARTING screen
+static uint8_t  start_bar    = 0;         // animated progress bar, 0..100 %
+static uint16_t state_loops  = 0;         // loop passes since entering the current state
+static uint8_t  wait_neutral = 0;         // 1 = ignore the stick until it is centred again
+static uint8_t  last_game    = HOF_TURBO; // which game the game-over screen belongs to
+static uint8_t  hof_game     = HOF_TURBO; // which table the High Scores shows
+static uint8_t  hof_from_menu = 0;        // 1 = High Scores opened from the main menu
+static uint16_t loop_count   = 0;         // counts every pass (used as a random seed)
 
 /* Newest values from Node 2's status message */
 static uint8_t  n2_status = N2_IDLE;
 static uint8_t  n2_goals  = 0;
 static uint16_t n2_shots  = 0;
 static uint16_t n2_secs   = 0;
-static uint16_t n2_age    = 0xFFFF;    // loop passes since the last status message
-static uint8_t  n2_new    = 0;         // 1 = a new status message arrived this pass
+static uint16_t n2_age    = 0xFFFF; // loop passes since the last status message
+static uint8_t  n2_new    = 0;      // 1 = a new status message arrived this pass
 
 /* Sound settings (Options -> Sound). Node 2 plays the music. */
-static uint8_t  sound_song   = 1;       // 0 = music off, 1 = automatic game soundtrack
-static uint8_t  sound_volume = 5;       // 0..10
-static uint8_t  sound_muted  = 0;       // 1 = silent (the volume is kept for later)
-static uint8_t  sound_row    = 0;       // selected row: 0 = song, 1 = volume, 2 = mute
-static uint8_t  sound_send   = 1;       // 1 = send the settings to Node 2 as soon as possible
-static uint8_t  sound_loops  = 0;       // loop passes since the settings were sent
-static game_state_t sound_return = GS_MENU;  // "back" goes here: main menu or pause menu
+static uint8_t  sound_song   = 1;           // 0 = music off, 1 = automatic game soundtrack
+static uint8_t  sound_volume = 5;           // 0..10
+static uint8_t  sound_muted  = 0;           // 1 = silent (the volume is kept for later)
+static uint8_t  sound_row    = 0;           // selected row: 0 = song, 1 = volume, 2 = mute
+static uint8_t  sound_send   = 1;           // 1 = send the settings to Node 2 as soon as possible
+static uint8_t  sound_loops  = 0;           // loop passes since the settings were sent
+static game_state_t sound_return = GS_MENU; // "back" goes here: main menu or pause menu
 
 /* Newest sound information from Node 2 */
-static uint8_t  n2_songs       = 0;     // number of songs on the SD card
-static uint8_t  n2_sound_state = 0xFF;  // SOUND_STATE_..., 0xFF = nothing heard yet
-static uint8_t  n2_name_song   = 0;     // the song that n2_name belongs to
-static uint8_t  n2_name_parts  = 0;     // bit 0..3 = which of the 4 name parts arrived
-static char     n2_name[SOUND_NAME_MAX + 1];  // OLED-visible name + '\0'
-static uint8_t  n2_sound_new   = 0;     // 1 = something new to show on the Sound screen
+static uint8_t  n2_songs       = 0;          // number of songs on the SD card
+static uint8_t  n2_sound_state = 0xFF;       // SOUND_STATE_..., 0xFF = nothing heard yet
+static uint8_t  n2_name_song   = 0;          // the song that n2_name belongs to
+static uint8_t  n2_name_parts  = 0;          // bit 0..3 = which of the 4 name parts arrived
+static char     n2_name[SOUND_NAME_MAX + 1]; // OLED-visible name + '\0'
+static uint8_t  n2_sound_new   = 0;          // 1 = something new to show on the Sound screen
 
-/* ---------------------------------------------------------------------------
+/************************************************************************/
+/*
  *  Small screen helpers. No printf: see "Text without printf" in oled.c.
- * ------------------------------------------------------------------------- */
+ */
+/************************************************************************/
 
-/* One row "label value unit", e.g. draw_value(3, PSTR("Time:  "), 42, PSTR(" s"))
- * unit = NULL -> no unit after the number                                   */
 static void draw_value(uint8_t row, PGM_P label, uint16_t value, PGM_P unit)
 {
 	oled_pos(row, 0);
@@ -158,8 +160,13 @@ static void draw_value(uint8_t row, PGM_P label, uint16_t value, PGM_P unit)
 	}
 	oled_clear_rest();
 }
+/************************************************************************/
+/*
+ * One row "label value unit", e.g. draw_value(3, PSTR("Time:  "), 42, PSTR(" s"))
+ * unit = NULL -> no unit after the number
+ */
+/************************************************************************/
 
-/* One row made of two flash texts, e.g. "Mode:  " + "Speed" */
 static void draw_two_texts(uint8_t row, PGM_P first, PGM_P second)
 {
 	oled_pos(row, 0);
@@ -167,6 +174,11 @@ static void draw_two_texts(uint8_t row, PGM_P first, PGM_P second)
 	oled_print_P(second);
 	oled_clear_rest();
 }
+/************************************************************************/
+/*
+ * One row made of two flash texts, e.g. "Mode:  " + "Speed"
+ */
+/************************************************************************/
 
 static PGM_P mode_name(void)
 {
@@ -176,11 +188,12 @@ static PGM_P mode_name(void)
 	return PSTR("Position");
 }
 
-/* ---------------------------------------------------------------------------
+/************************************************************************/
+/*
  *  Screens
- * ------------------------------------------------------------------------- */
+ */
+/************************************************************************/
 
-/* STARTING: checklist of what Node 2 is doing + progress bar */
 static void draw_start_checklist(uint8_t stage)
 {
 	// stage 0 = calibrating, 1 = verifying motor, 2 = arming, 3 = all done
@@ -188,17 +201,22 @@ static void draw_start_checklist(uint8_t stage)
 	for (uint8_t i = 0; i < 3; i++) {
 		PGM_P mark;
 		if (i < stage) {
-			mark = PSTR("[x] ");                       // done
+			mark = PSTR("[x] "); // done
 		}
 		else if (i == stage) {
-			mark = PSTR("[>] ");                       // busy now
+			mark = PSTR("[>] "); // busy now
 		}
 		else {
-			mark = PSTR("[ ] ");                       // still to do
+			mark = PSTR("[ ] "); // still to do
 		}
 		draw_two_texts(2 + i, mark, names[i]);
 	}
 }
+/************************************************************************/
+/*
+ * STARTING: checklist of what Node 2 is doing + progress bar
+ */
+/************************************************************************/
 
 static void draw_starting(void)
 {
@@ -219,7 +237,6 @@ static void draw_start_failed(PGM_P reason)
 	oled_print_line_P(7, PSTR("SR6: Back to menu"));
 }
 
-/* PLAYING: live values from Node 2. full = 1 also draws the fixed parts. */
 static void draw_playing(uint8_t full)
 {
 	if (full) {
@@ -252,8 +269,12 @@ static void draw_playing(uint8_t full)
 		oled_print_line_P(6, PSTR("Motor: STOPPED"));
 	}
 }
+/************************************************************************/
+/*
+ * PLAYING: live values from Node 2. full = 1 also draws the fixed parts.
+ */
+/************************************************************************/
 
-/* STATS: summary of this game (opened from the pause menu) */
 static void draw_stats(uint8_t full)
 {
 	if (full) {
@@ -266,6 +287,11 @@ static void draw_stats(uint8_t full)
 	draw_value(4, PSTR("Shots: "), n2_shots, NULL);
 	draw_value(5, PSTR("Goals: "), n2_goals, NULL);
 }
+/************************************************************************/
+/*
+ * STATS: summary of this game (opened from the pause menu)
+ */
+/************************************************************************/
 
 static void draw_about(void)
 {
@@ -278,7 +304,8 @@ static void draw_about(void)
 	oled_print_line_P(7, PSTR("< Back"));
 }
 
-/* ---------------------------------------------------------------------------
+/************************************************************************/
+/*
  *  Sound screen (Options -> Sound)
  *
  *    row 0      Sound
@@ -288,23 +315,24 @@ static void draw_about(void)
  *    row 5     [#####     ]
  *    row 6     Mute:   Off
  *    row 7    </>:Change SR6:Back   left/right changes the selected row
- * ------------------------------------------------------------------------- */
+ */
+/************************************************************************/
 
-/* Column 0 of a row: '>' if this row is selected, else a space */
-static void draw_sound_mark(uint8_t screen_row, uint8_t row)
-{
+static void draw_sound_mark(uint8_t screen_row, uint8_t row) {
 	oled_pos(screen_row, 0);
 	if (sound_row == row) {
 		oled_print_P(PSTR(">"));
-	}
-	else {
+	} else {
 		oled_print_P(PSTR(" "));
 	}
 }
+/************************************************************************/
+/*
+ * Column 0 of a row: '>' if this row is selected, else a space
+ */
+/************************************************************************/
 
-/* Text for a problem reported by Node 2, or NULL when everything is OK */
-static PGM_P sound_problem_text(void)
-{
+static PGM_P sound_problem_text(void) {
 	if (n2_sound_state == 0xFF) {
 		return PSTR("Waiting for Node 2");
 	}
@@ -325,10 +353,13 @@ static PGM_P sound_problem_text(void)
 	}
 	return NULL;
 }
+/************************************************************************/
+/*
+ * Text for a problem reported by Node 2, or NULL when everything is OK
+ */
+/************************************************************************/
 
-/* full = 1 also draws the parts that never change (title, help line) */
-static void draw_sound(uint8_t full)
-{
+static void draw_sound(uint8_t full) {
 	if (full) {
 		oled_clear();
 		oled_print_title_P(0, PSTR("Sound"));
@@ -340,8 +371,7 @@ static void draw_sound(uint8_t full)
 	oled_print_P(PSTR("Song:   "));
 	if (sound_song == 0) {
 		oled_print_P(PSTR("Off"));
-	}
-	else {
+	} else {
 		oled_print_P(PSTR("Auto"));
 	}
 	oled_clear_rest();
@@ -350,15 +380,12 @@ static void draw_sound(uint8_t full)
 	PGM_P problem = sound_problem_text();
 	if (problem != NULL) {
 		oled_print_centered_P(3, problem);
-	}
-	else if (sound_song == 0) {
+	} else if (sound_song == 0) {
 		oled_print_centered_P(3, PSTR("Music off"));
-	}
-	else if (n2_name_parts == 0x0F) {
+	} else if (n2_name_parts == 0x0F) {
 		oled_clear_line(3);
 		oled_print_centered(3, n2_name);
-	}
-	else {
+	} else {
 		oled_print_centered_P(3, n2_name_song ? PSTR("...") : PSTR("No music"));
 	}
 
@@ -376,12 +403,16 @@ static void draw_sound(uint8_t full)
 	draw_sound_mark(6, 2);
 	if (sound_muted) {
 		oled_print_P(PSTR("Mute:   On"));
-	}
-	else {
+	} else {
 		oled_print_P(PSTR("Mute:   Off"));
 	}
 	oled_clear_rest();
 }
+/************************************************************************/
+/*
+ * full = 1 also draws the parts that never change (title, help line)
+ */
+/************************************************************************/
 
 /* ---------------------------------------------------------------------------
  *  Menu actions (called by the menu when an item is selected)
@@ -441,18 +472,22 @@ static menu_t pause_menu = {
 	.actions  = { resume_game, stop_game, NULL, show_stats }
 };
 
-/* Games -> Ping Pong: intro animation, then wait for Node 2 to calibrate */
 static void start_pingpong(void)
 {
-	oled_intro("PING PONG");     // big title + loading bar + flashes (~2 s)
+	oled_intro("PING PONG"); // big title + loading bar + flashes (~2 s)
 	gs = GS_STARTING;
 	state_loops  = 0;
 	start_failed = 0;
 	start_stage  = 0;
 	start_bar    = 0;
-	n2_status    = N2_IDLE;      // forget old status from before this game
+	n2_status    = N2_IDLE; // forget old status from before this game
 	draw_starting();
 }
+/************************************************************************/
+/*
+ * Games -> Ping Pong: intro animation, then wait for Node 2 to calibrate
+ */
+/************************************************************************/
 
 static void resume_game(void)
 {
@@ -464,7 +499,7 @@ static void stop_game(void)
 {
 	audio_event(AUD_BACK);
 	gs = GS_MENU;
-	menu_init(&main_menu);       // back to the main menu
+	menu_init(&main_menu); // back to the main menu
 }
 
 static void show_stats(void)
@@ -479,8 +514,6 @@ static void show_about(void)
 	draw_about();
 }
 
-/* Options -> Control: switch between position (PI) and speed control.
- * The item text changes, so the player sees what is selected.           */
 static void toggle_control(void)
 {
 	audio_event(AUD_CHANGE);
@@ -494,26 +527,37 @@ static void toggle_control(void)
 	}
 	menu_redraw();
 }
+/************************************************************************/
+/*
+ * Options -> Control: switch between position (PI) and speed control.
+ * The item text changes, so the player sees what is selected.
+ */
+/************************************************************************/
 
-/* Games -> Turbo Rush: runs completely on Node 1 */
 static void start_turbo(void)
 {
 	oled_intro("TURBO RUSH");
 	gs = GS_CAR;
-	car_start(loop_count | 1);   // time spent in the menu = random seed (never 0)
+	car_start(loop_count | 1); // time spent in the menu = random seed (never 0)
 }
+/************************************************************************/
+/*
+ * Games -> Turbo Rush: runs completely on Node 1
+ */
+/************************************************************************/
 
-/* Main menu -> High Scores */
 static void show_hof(void)
 {
 	gs = GS_HOF_VIEW;
 	hof_from_menu = 1;
 	hof_draw(hof_game);
 }
+/************************************************************************/
+/*
+ * Main menu -> High Scores
+ */
+/************************************************************************/
 
-/* ---------------------------------------------------------------------------
- *  Game over (both games): new high score -> initials, else result screen
- * ------------------------------------------------------------------------- */
 static void game_over(uint8_t game, uint16_t score)
 {
 	last_game = game;
@@ -539,6 +583,11 @@ static void game_over(uint8_t game, uint16_t score)
 	oled_print_line_P(6, PSTR("SR5: Play again"));
 	oled_print_line_P(7, PSTR("< Menu"));
 }
+/************************************************************************/
+/*
+ *  Game over (both games): new high score -> initials, else result screen
+ */
+/************************************************************************/
 
 static void play_again(void)
 {
@@ -550,28 +599,30 @@ static void play_again(void)
 	}
 }
 
-/* ---------------------------------------------------------------------------
+/************************************************************************/
+/*
  *  Sound: screen input, messages from and to Node 2
- * ------------------------------------------------------------------------- */
+ */
+/************************************************************************/
 
-/* Options -> Sound (from the main menu or from the pause menu) */
-static void show_sound(void)
-{
-	sound_return = gs;                  // GS_MENU or GS_PAUSED: where "back" goes
+static void show_sound(void) {
+	sound_return = gs; // GS_MENU or GS_PAUSED: where "back" goes
 	gs = GS_SOUND;
 	sound_row = 0;
 	draw_sound(1);
 }
+/************************************************************************/
+/*
+ * Options -> Sound (from the main menu or from the pause menu)
+ */
+/************************************************************************/
 
-/* Joystick right (right = 1) or left (right = 0) on the selected row */
-static void sound_change(uint8_t right)
-{
-	uint8_t old_song=sound_song, old_volume=sound_volume, old_mute=sound_muted;
+static void sound_change(uint8_t right) {
+	uint8_t old_song = sound_song, old_volume = sound_volume, old_mute = sound_muted;
 	if (sound_row == 0) {
 		// Automatic soundtrack on/off; file selection belongs to Node 2.
 		sound_song = !sound_song;
-	}
-	else if (sound_row == 1) {
+	} else if (sound_row == 1) {
 		// Volume 0..10, stops at both ends
 		if (right && sound_volume < SOUND_VOLUME_MAX) {
 			sound_volume++;
@@ -579,22 +630,26 @@ static void sound_change(uint8_t right)
 		if (!right && sound_volume > 0) {
 			sound_volume--;
 		}
-	}
-	else {
+	} else {
 		// Mute: on <-> off
 		sound_muted = !sound_muted;
 	}
-	if (old_song!=sound_song || old_volume!=sound_volume || old_mute!=sound_muted)
+	if (old_song != sound_song || old_volume != sound_volume || old_mute != sound_muted) {
 		audio_event(AUD_CHANGE);
-	sound_send = 1;                     // tell Node 2 in the next pass
+	}
+	sound_send = 1; // tell Node 2 in the next pass
 }
+/************************************************************************/
+/*
+ * Joystick right (right = 1) or left (right = 0) on the selected row
+ */
+/************************************************************************/
 
-static void update_sound(nav_event_t nav_edge, uint8_t sr6_edge)
-{
+static void update_sound(nav_event_t nav_edge, uint8_t sr6_edge) {
 	if (sr6_edge || nav_edge == NAV_CLICK) {
 		audio_event(AUD_BACK);
-		gs = sound_return;              // back to Options (main or pause menu)
-		wait_neutral = 1;               // a held button must not select a menu item
+		gs = sound_return; // back to Options (main or pause menu)
+		wait_neutral = 1;  // a held button must not select a menu item
 		menu_redraw();
 		return;
 	}
@@ -602,76 +657,81 @@ static void update_sound(nav_event_t nav_edge, uint8_t sr6_edge)
 		audio_event(AUD_NAV);
 		if (sound_row == 0) {
 			sound_row = 2;
-		}
-		else {
+		} else {
 			sound_row--;
 		}
 		draw_sound(0);
-	}
-	else if (nav_edge == NAV_DOWN) {
+	} else if (nav_edge == NAV_DOWN) {
 		audio_event(AUD_NAV);
 		sound_row++;
 		if (sound_row > 2) {
 			sound_row = 0;
 		}
 		draw_sound(0);
-	}
-	else if (nav_edge == NAV_RIGHT || nav_edge == NAV_LEFT) {
+	} else if (nav_edge == NAV_RIGHT || nav_edge == NAV_LEFT) {
 		sound_change(nav_edge == NAV_RIGHT);
 		draw_sound(0);
-	}
-	else if (n2_sound_new) {
-		draw_sound(0);                  // new name or state from Node 2
+	} else if (n2_sound_new) {
+		draw_sound(0); // new name or state from Node 2
 	}
 }
 
-/* CAN_ID_SOUND_INFO. n2_sound_new = 1 only when something changed, so the
- * screen is not redrawn every time the message arrives (10 times a second). */
-static void read_sound_info(const can_message_t *rx)
-{
-	/* INFO is authoritative: NAME now identifies the automatic selection,
-	 * not the Auto/Off setting. Reuse the existing name ID, no extra SRAM. */
+static void read_sound_info(const can_message_t *rx) {
+	/*
+	 * INFO is authoritative: NAME now identifies the automatic selection,
+	 * not the Auto/Off setting. Reuse the existing name ID, no extra SRAM.
+	 */
 	if (rx->data[1] != n2_name_song) {
-		n2_name_song=rx->data[1];
-		n2_name_parts=0;
-		n2_sound_new=1;
+		n2_name_song = rx->data[1];
+		n2_name_parts = 0;
+		n2_sound_new = 1;
 	}
 	if (rx->data[0] != n2_songs || rx->data[2] != n2_sound_state) {
-		n2_songs       = rx->data[0];
+		n2_songs = rx->data[0];
 		n2_sound_state = rx->data[2];
-		n2_sound_new   = 1;
+		n2_sound_new = 1;
 	}
 }
+/************************************************************************/
+/*
+ * CAN_ID_SOUND_INFO. n2_sound_new = 1 only when something changed, so the
+ * screen is not redrawn every time the message arrives (10 times a second).
+ */
+/************************************************************************/
 
-/* CAN_ID_SOUND_NAME: [0] song number, [1] part 0..3, [2..7] 6 letters.
- * The name is shown when all 4 parts of the same song have arrived.      */
-static void read_sound_name(const can_message_t *rx)
-{
+static void read_sound_name(const can_message_t *rx) {
 	uint8_t song = rx->data[0];
 	uint8_t part = rx->data[1];
 	if (part >= SOUND_NAME_PARTS) {
 		return;
 	}
-	uint8_t part_bit = (uint8_t)(1 << part);   // part 0 -> bit 0 ... part 3 -> bit 3
-	if (!song || song != n2_name_song) return; /* await matching INFO */
+	uint8_t part_bit = (uint8_t)(1 << part); // part 0 -> bit 0 ... part 3 -> bit 3
+	if (!song || song != n2_name_song) {
+		return; // await matching INFO
+	}
 	if (n2_name_parts & part_bit) {
-		return;                         // we already have this part
+		return; // we already have this part
 	}
 	for (uint8_t i = 0; i < 6; i++) {
-		uint8_t position=(uint8_t)(part * 6 + i);
-		if(position<SOUND_NAME_MAX) n2_name[position] = (char)rx->data[2 + i];
+		uint8_t position = (uint8_t)(part * 6 + i);
+		if (position < SOUND_NAME_MAX) {
+			n2_name[position] = (char)rx->data[2 + i];
+		}
 	}
-	n2_name[SOUND_NAME_MAX] = '\0';     // never longer than one OLED row
+	n2_name[SOUND_NAME_MAX] = '\0'; // never longer than one OLED row
 	n2_name_parts = n2_name_parts | part_bit;
 	if (n2_name_parts == 0x0F) {
-		n2_sound_new = 1;               // name complete -> show it
+		n2_sound_new = 1; // name complete -> show it
 	}
 }
+/************************************************************************/
+/*
+ * CAN_ID_SOUND_NAME: [0] song number, [1] part 0..3, [2..7] 6 letters.
+ * The name is shown when all 4 parts of the same song have arrived.
+ */
+/************************************************************************/
 
-/* Song + volume to Node 2. Muted = volume 0 for Node 2.
- * Returns 1 if the message was queued, 0 if transmit buffer 0 was busy.   */
-static uint8_t send_sound_settings(void)
-{
+static uint8_t send_sound_settings(void) {
 	can_message_t msg;
 	msg.id = CAN_ID_SOUND;
 	msg.length = 2;
@@ -680,22 +740,25 @@ static uint8_t send_sound_settings(void)
 	if (sound_muted) {
 		msg.data[1] = 0;
 	}
-	return can_send(&msg) == 0;         // can_send(): 0 = queued, 1 = busy
+	return can_send(&msg) == 0; // can_send(): 0 = queued, 1 = busy
 }
+/************************************************************************/
+/*
+ * Song + volume to Node 2. Muted = volume 0 for Node 2.
+ * Returns 1 if the message was queued, 0 if transmit buffer 0 was busy.
+ */
+/************************************************************************/
 
-/* ---------------------------------------------------------------------------
- *  STARTING: follow Node 2 through calibrating -> verifying -> arming
- * ------------------------------------------------------------------------- */
 static void update_starting(uint8_t sr6_edge)
 {
-	if (sr6_edge) {                      // cancel (or leave the "failed" screen)
+	if (sr6_edge) { // cancel (or leave the "failed" screen)
 		audio_event(AUD_BACK);
 		gs = GS_MENU;
-		menu_redraw();                   // back to the Games menu
+		menu_redraw(); // back to the Games menu
 		return;
 	}
 	if (start_failed) {
-		return;                          // keep showing the error until SR6
+		return; // keep showing the error until SR6
 	}
 
 	// Errors (only after STALE_LOOPS, so an old status from before can't trigger them)
@@ -741,6 +804,11 @@ static void update_starting(uint8_t sr6_edge)
 		draw_playing(1);
 	}
 }
+/************************************************************************/
+/*
+ *  STARTING: follow Node 2 through calibrating -> verifying -> arming
+ */
+/************************************************************************/
 
 /*
  * The UART as a stdio stream for printf(). FDEV_SETUP_STREAM builds it at
@@ -755,7 +823,7 @@ int main(void)
 	FILE *uart_stream = &uart_stdio;
 	stdout = uart_stream;
 
-	puts_P(PSTR("Node 1 (ATmega162) started"));   // -> RS232 (puts: no printf needed)
+	puts_P(PSTR("Node 1 (ATmega162) started")); // -> RS232 (puts: no printf needed)
 
 	spi_master_init();
 	
@@ -764,7 +832,7 @@ int main(void)
 		puts_P(PSTR("MCP2515 init FAILED"));
 	} else {
 		puts_P(PSTR("MCP2515 OK"));
-		mcp2515_int_init();      // MCP2515 INT -> PE0 (INT2)
+		mcp2515_int_init(); // MCP2515 INT -> PE0 (INT2)
 #if CAN_SELFTEST
 		can_test();
 #endif
@@ -772,9 +840,9 @@ int main(void)
 	}
 	oled_init();
 	oled_clear();
-	hof_init();                // set up the High Scores in EEPROM (first start only)
+	hof_init(); // set up the High Scores in EEPROM (first start only)
 
-	menu_init(&main_menu);     // power on -> straight to the main menu
+	menu_init(&main_menu); // power on -> straight to the main menu
 
 	uint8_t sr6_prev = 0;
 	uint8_t sr5_prev = 0;
@@ -785,23 +853,27 @@ int main(void)
 		io_joystick_t joystick = io_read_joystick();
 		nav_event_t joystick_event = nav_from_joystick(joystick);
 
-		/* ---- Edges: "just pressed" (was not pressed last pass) ---------- */
+		/*
+		 * ---- Edges: "just pressed" (was not pressed last pass) ----------
+		 */
 		uint8_t sr6 = (button.right & SR6_MASK) != 0;
 		uint8_t sr6_edge = sr6 && !sr6_prev;
 		sr6_prev = sr6;
 		uint8_t back_edge = (joystick_event == NAV_LEFT || joystick_event == NAV_CLICK)
 		                    && joystick_event != event_prev;
-		nav_event_t nav_edge = NAV_NEUTRAL;          // the event, only in the pass it starts
+		nav_event_t nav_edge = NAV_NEUTRAL; // the event, only in the pass it starts
 		if (joystick_event != event_prev) {
 			nav_edge = joystick_event;
 		}
-		nav_event_t event_prev_frame = event_prev;   // for the car game (lane change edge)
+		nav_event_t event_prev_frame = event_prev; // for the car game (lane change edge)
 		event_prev = joystick_event;
 		loop_count++;
 
-		/* ---- Messages from Node 2 ---------------------------------------- */
+		/*
+		 * ---- Messages from Node 2 ----------------------------------------
+		 */
 		if (n2_age < 0xFFFF) {
-			n2_age++;                         // one more pass without a status message
+			n2_age++; // one more pass without a status message
 		}
 		can_message_t rx;
 		if (can_receive(&rx)) {
@@ -821,7 +893,9 @@ int main(void)
 			}
 		}
 
-		/* ---- What to do in each state ------------------------------------ */
+		/*
+		 * ---- What to do in each state ------------------------------------
+		 */
 		switch (gs) {
 			case GS_MENU:
 			case GS_PAUSED:
@@ -848,18 +922,18 @@ int main(void)
 				break;
 
 			case GS_PLAYING:
-				if (sr6_edge) {                       // SR6 = pause
+				if (sr6_edge) { // SR6 = pause
 					gs = GS_PAUSED;
 					menu_init(&pause_menu);
 					wait_neutral = 1;
 				}
-				else if (n2_goals >= PP_LIVES) {      // all lives lost -> game over
+				else if (n2_goals >= PP_LIVES) { // all lives lost -> game over
 					oled_flash();
 					oled_flash();
-					game_over(HOF_PINGPONG, n2_secs);  // score = seconds survived
+					game_over(HOF_PINGPONG, n2_secs); // score = seconds survived
 				}
 				else if (n2_new || n2_age == NODE2_TIMEOUT_LOOPS + 1) {
-					draw_playing(0);                  // update the live values
+					draw_playing(0); // update the live values
 				}
 				break;
 
@@ -867,7 +941,7 @@ int main(void)
 				if (back_edge || sr6_edge) {
 					audio_event(AUD_BACK);
 					gs = GS_PAUSED;
-					menu_redraw();                    // back to the pause menu
+					menu_redraw(); // back to the pause menu
 				}
 				else if (n2_new) {
 					draw_stats(0);
@@ -875,7 +949,7 @@ int main(void)
 				break;
 
 			case GS_CAR: {
-				if (sr6_edge) {                       // SR6 = pause
+				if (sr6_edge) { // SR6 = pause
 					gs = GS_CAR_PAUSED;
 					oled_clear();
 					oled_print_title_P(0, PSTR("Turbo Rush"));
@@ -892,8 +966,10 @@ int main(void)
 				}
 				if (car_update(move, (button.right & SR5_MASK) != 0)) {
 					audio_event(AUD_LOST);
-					/* Best-effort immediate audio before the blocking animation.
-					 * Turbo already commands motor STOP. Retained token retries later. */
+					/*
+					 * Best-effort immediate audio before the blocking animation.
+					 * Turbo already commands motor STOP. Retained token retries later.
+					 */
 					can_send_joystick(joystick.x, joystick.y, joystick.btn, joystick_event,
 					                  button.right, GAME_CMD_STOP, control_mode, audio_ui | AUD_OVER);
 					car_crash_animation();
@@ -926,7 +1002,7 @@ int main(void)
 				break;
 
 			case GS_HOF_ENTRY:
-				if (hof_entry_update(nav_edge)) {     // name saved -> show the table
+				if (hof_entry_update(nav_edge)) { // name saved -> show the table
 					gs = GS_HOF_VIEW;
 					hof_from_menu = 0;
 				}
@@ -934,7 +1010,7 @@ int main(void)
 
 			case GS_HOF_VIEW:
 				if (nav_edge == NAV_UP || nav_edge == NAV_DOWN) {
-					hof_game = !hof_game;             // switch between the two games
+					hof_game = !hof_game; // switch between the two games
 					hof_draw(hof_game);
 				}
 				else if (back_edge || sr6_edge) {
@@ -954,7 +1030,9 @@ int main(void)
 		n2_sound_new = 0;
 		if (state_loops < 0xFFFF) state_loops++;
 
-		/* ---- Tell Node 2 what to do (byte 5 of the joystick message) ---- */
+		/*
+		 * ---- Tell Node 2 what to do (byte 5 of the joystick message) ----
+		 */
 		uint8_t game_cmd;
 		if ((gs == GS_STARTING && !start_failed) || gs == GS_PLAYING) {
 			game_cmd = GAME_CMD_PLAY;
@@ -963,25 +1041,35 @@ int main(void)
 			game_cmd = GAME_CMD_PAUSE;
 		}
 		else if (gs == GS_SOUND && sound_return == GS_PAUSED) {
-			game_cmd = GAME_CMD_PAUSE;        // Sound opened from the pause menu: keep the game
+			game_cmd = GAME_CMD_PAUSE; // Sound opened from the pause menu: keep the game
 		}
 		else {
 			game_cmd = GAME_CMD_STOP;
 		}
-		/* Sound context does not alter the physical motor command above. */
-		uint8_t audio_state=AUD_MENU;
-		if (gs==GS_PLAYING) audio_state=AUD_BLUE;
-		else if (gs==GS_PAUSED || gs==GS_STATS ||
-		         (gs==GS_SOUND && sound_return==GS_PAUSED)) audio_state=AUD_BLUE_PAUSE;
-		else if (gs==GS_CAR) audio_state=AUD_TURBO;
-		else if (gs==GS_CAR_PAUSED) audio_state=AUD_TURBO_PAUSE;
-		else if (gs==GS_GAME_OVER || gs==GS_HOF_ENTRY ||
-		         (gs==GS_HOF_VIEW && !hof_from_menu)) audio_state=AUD_OVER;
-		/* Normally the joystick message. Every SOUND_SEND_LOOPS passes, and
+		/*
+		 * Sound context does not alter the physical motor command above.
+		 */
+		uint8_t audio_state = AUD_MENU;
+		if (gs == GS_PLAYING) {
+			audio_state = AUD_BLUE;
+		} else if (gs == GS_PAUSED || gs == GS_STATS ||
+		           (gs == GS_SOUND && sound_return == GS_PAUSED)) {
+			audio_state = AUD_BLUE_PAUSE;
+		} else if (gs == GS_CAR) {
+			audio_state = AUD_TURBO;
+		} else if (gs == GS_CAR_PAUSED) {
+			audio_state = AUD_TURBO_PAUSE;
+		} else if (gs == GS_GAME_OVER || gs == GS_HOF_ENTRY ||
+		           (gs == GS_HOF_VIEW && !hof_from_menu)) {
+			audio_state = AUD_OVER;
+		}
+		/*
+		 * Normally the joystick message. Every SOUND_SEND_LOOPS passes, and
 		 * right after a change on the Sound screen, the sound settings go
 		 * instead (both use transmit buffer 0, so one message per pass).
 		 * Sending them again and again means Node 2 also gets them when it
-		 * is switched on after Node 1.                                      */
+		 * is switched on after Node 1.
+		 */
 		sound_loops++;
 		if (sound_loops >= SOUND_SEND_LOOPS) {
 			sound_send = 1;

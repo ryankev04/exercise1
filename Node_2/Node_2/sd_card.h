@@ -29,15 +29,15 @@
 
 #include <stdint.h>
 
-#define SD_SECTOR_SIZE  512
+#define SD_SECTOR_SIZE 512
 
 typedef enum {
-	SD_OK = 0,
-	SD_ERR_NO_CARD,     // no answer to CMD0 (no card, wrong wiring, no power)
-	SD_ERR_VOLTAGE,     // card says it can't run at 3.3 V (CMD8)
-	SD_ERR_TIMEOUT,     // card did not finish its start-up (ACMD41)
-	SD_ERR_OCR,         // could not read the card type (CMD58)
-	SD_ERR_BLOCK_SIZE   // old card refused 512-byte blocks (CMD16)
+    SD_OK = 0,
+    SD_ERR_NO_CARD,   // no answer to CMD0 (no card, wrong wiring, no power)
+    SD_ERR_VOLTAGE,   // card says it can't run at 3.3 V (CMD8)
+    SD_ERR_TIMEOUT,   // card did not finish its start-up (ACMD41)
+    SD_ERR_OCR,       // could not read the card type (CMD58)
+    SD_ERR_BLOCK_SIZE // old card refused 512-byte blocks (CMD16)
 } sd_result_t;
 
 /* Start the card. timer_init() must have been called first (timeouts use

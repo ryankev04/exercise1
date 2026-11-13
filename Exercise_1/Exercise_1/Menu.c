@@ -11,7 +11,7 @@
 #include "oled.h"
 #include "usart.h"
 #include <stdlib.h>
-#include <string.h>     // strlen()
+#include <string.h> // strlen()
 #include <util/delay.h>
 
 // UNVERIFIED PLACEHOLDERS -- confirm with a raw print test
@@ -27,7 +27,7 @@
 #define MENU_HELP_ROW            7
 #define MENU_FIRST_ITEM_ROW      1
 #define MENU_VISIBLE_ITEMS       6
-#define BLINK_PERIOD_TICKS      12  // 12 * 20 ms = approximately 240 ms
+#define BLINK_PERIOD_TICKS      12 // 12 * 20 ms = approximately 240 ms
 #define SR6_CANCEL_MASK       0x20
 
 typedef enum {
@@ -48,17 +48,15 @@ static menu_t empty_menu = {
 };
 
 
-// Convert the large analogue joystick reading into one menu event.
 nav_event_t nav_from_joystick(io_joystick_t j){
 
-// Button takes priority -- if it's pressed, report CLICK straight
-// away and don't even look at direction.
+	// Button takes priority -- if it's pressed, report CLICK straight
+	// away and don't even look at direction.
 	if (j.btn == NAV_BTN_PRESSED_VALUE) {
 		return NAV_CLICK;
 	}
 
-// How far off-center is the stick, on each axis?
-	int16_t dev_x = (int16_t)j.x - NAV_CENTER;
+	int16_t dev_x = (int16_t)j.x - NAV_CENTER; // How far off-center is the stick, on each axis?
 	int16_t dev_y = (int16_t)j.y - NAV_CENTER;
 
 	if (abs(dev_x) > abs(dev_y)) {
@@ -80,8 +78,12 @@ nav_event_t nav_from_joystick(io_joystick_t j){
 
 	return NAV_NEUTRAL;
 }
+/************************************************************************/
+/*
+ * Convert the large analogue joystick reading into one menu event.
+ */
+/************************************************************************/
 
-// First item shown when a menu contains more than six entries.
 /*
 * Scrolling: only 6 rows fit on screen, but a menu can hold up to
 * MENU_MAX_ITEMS (8). These two helpers decide which side is visible.
@@ -102,12 +104,11 @@ static uint8_t menu_first_visible_item(uint8_t selected)
 	}
 	return selected - (MENU_VISIBLE_ITEMS - 1);
 }
-
-
-// Which OLED row (page) the selected item is currently drawn on.
-//   row = 1 (first item row) + how far the selection is from the top
-//         of the visible slice.
-// Example: selected = 7, first visible = 2 -> row = 1 + 7 - 2 = 6.
+/************************************************************************/
+/*
+ * First item shown when a menu contains more than six entries.
+ */
+/************************************************************************/
 
 static uint8_t menu_selected_row(uint8_t selected)
 {
@@ -115,6 +116,14 @@ static uint8_t menu_selected_row(uint8_t selected)
 	+ selected
 	- menu_first_visible_item(selected);
 }
+/************************************************************************/
+/*
+ * Which OLED row (page) the selected item is currently drawn on.
+ * row = 1 (first item row) + how far the selection is from the top
+ * of the visible slice.
+ * Example: selected = 7, first visible = 2 -> row = 1 + 7 - 2 = 6.
+ */
+/************************************************************************/
 
 static void menu_draw_help(pending_action_t pending)
 {
@@ -133,9 +142,6 @@ static void menu_draw_help(pending_action_t pending)
 
 
 
-// Change only the one-character marker; the item text remains untouched.
-// Used for blinking: redrawing the whole screen every 240 ms would flicker
-// and waste SPI time, so only column 0 of the selected row is rewritten.
 static void menu_draw_marker(uint8_t selected, char marker)
 {
 	char text[2] = { marker, '\0' };
@@ -144,35 +150,43 @@ static void menu_draw_marker(uint8_t selected, char marker)
 	// drawn inverted too (otherwise it would be a black block in the bar).
 	oled_print_inverted(text);
 }
-
+/************************************************************************/
 /*
-* menu_draw_row(): draw one menu item over the FULL width (128 columns).
-*
-*   selected = 1 -> ">Item" in black on a white bar to the right edge
-*   selected = 0 -> " Item" in white on black, rest of the row erased
-*
-* Because every column of the row is written, the old content is
-* overwritten -> menu_draw() no longer needs oled_clear() -> no flicker.
-* One row holds 21 characters: 1 marker + max 20 for the item text.
-*/
+ * Change only the one-character marker; the item text remains untouched.
+ * Used for blinking: redrawing the whole screen every 240 ms would flicker
+ * and waste SPI time, so only column 0 of the selected row is rewritten.
+ */
+/************************************************************************/
+
 static void menu_draw_row(const char *text, uint8_t row, uint8_t selected)
 {
-	uint8_t used = 6 + 6 * strlen(text);   // columns used: marker + text
+	uint8_t used = 6 + 6 * strlen(text); // columns used: marker + text
 
 	oled_pos(row, 0);
 	if (selected) {
 		oled_print_inverted(">");
 		oled_print_inverted(text);
-		oled_fill_to_end(used, 0xFF);      // white to the end = highlight bar
+		oled_fill_to_end(used, 0xFF); // white to the end = highlight bar
 	}
 	else {
 		oled_print(" ");
 		oled_print(text);
-		oled_fill_to_end(used, 0x00);      // black to the end = erase old text
+		oled_fill_to_end(used, 0x00); // black to the end = erase old text
 	}
 }
+/************************************************************************/
+/*
+ * menu_draw_row(): draw one menu item over the FULL width (128 columns).
+ *
+ *   selected = 1 -> ">Item" in black on a white bar to the right edge
+ *   selected = 0 -> " Item" in white on black, rest of the row erased
+ *
+ * Because every column of the row is written, the old content is
+ * overwritten -> menu_draw() no longer needs oled_clear() -> no flicker.
+ * One row holds 21 characters: 1 marker + max 20 for the item text.
+ */
+/************************************************************************/
 
-// Draw title, visible menu entries, and the persistent help line.
 static void menu_draw(menu_t *menu, uint8_t selected)
 {
 	uint8_t first = menu_first_visible_item(selected);
@@ -196,19 +210,11 @@ static void menu_draw(menu_t *menu, uint8_t selected)
 	}
 	menu_draw_help(PENDING_NONE);
 }
-
-
+/************************************************************************/
 /*
-* menu_go_back(): leave the current submenu and return to its amin menu where it came from.
-*
-* Takes POINTERS to the stack, the selection array and depth, because it
-* has to change menu_run()'s local variables (C passes by value, so without
-* the pointer the change would be lost when the function returns).
-*
-* At depth 0 (root menu) there is nowhere to go, so it just redraws.
-* selected_stack[*depth] still holds the parent's old selection, so the
-* marker lands back on the item you entered from.
-*/
+ * Draw title, visible menu entries, and the persistent help line.
+ */
+/************************************************************************/
 
 static void menu_go_back(menu_t **stack, uint8_t *selected_stack, uint8_t *depth)
 {
@@ -218,22 +224,31 @@ static void menu_go_back(menu_t **stack, uint8_t *selected_stack, uint8_t *depth
 	}
 	menu_draw(stack[*depth], selected_stack[*depth]);
 }
-
+/************************************************************************/
 /*
- * Open the selected submenu. A NULL submenu is not allowed to terminate the
- * menu anymore; it opens the shared Empty page instead.
+ * menu_go_back(): leave the current submenu and return to its amin menu where it came from.
+ *
+ * Takes POINTERS to the stack, the selection array and depth, because it
+ * has to change menu_run()'s local variables (C passes by value, so without
+ * the pointer the change would be lost when the function returns).
+ *
+ * At depth 0 (root menu) there is nowhere to go, so it just redraws.
+ * selected_stack[*depth] still holds the parent's old selection, so the
+ * marker lands back on the item you entered from.
  */
+/************************************************************************/
+
 static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t *depth)
 {
 	menu_t *current = stack[*depth];
 	menu_t *sub = current->submenus[selected_stack[*depth]];
 
 	/*
-	* If this item has an action (a function), run it instead of opening a
-	* page. Example: "Ping Pong" -> start_pingpong() in main.c.
-	* actions[] is an array of function pointers: each item can hold the
-	* name of a function, or NULL if it has none.
-	*/
+	 * If this item has an action (a function), run it instead of opening a
+	 * page. Example: "Ping Pong" -> start_pingpong() in main.c.
+	 * actions[] is an array of function pointers: each item can hold the
+	 * name of a function, or NULL if it has none.
+	 */
 	void (*action)(void) = current->actions[selected_stack[*depth]];
 	if (action != NULL) {
 		audio_event(AUD_ENTER);
@@ -254,7 +269,7 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 	audio_event(sub == NULL ? AUD_ERROR : AUD_ENTER);
 	(*depth)++;
 	if (sub == NULL) {
-		stack[*depth] = &empty_menu;      // not made yet -> "Coming soon" page
+		stack[*depth] = &empty_menu; // not made yet -> "Coming soon" page
 	}
 	else {
 		stack[*depth] = sub;
@@ -262,16 +277,21 @@ static void menu_open_selected(menu_t **stack, uint8_t *selected_stack, uint8_t 
 	selected_stack[*depth] = 0;
 	menu_draw(stack[*depth], 0);
 }
-
+/************************************************************************/
+/*
+ * Open the selected submenu. A NULL submenu is not allowed to terminate the
+ * menu anymore; it opens the shared Empty page instead.
+ */
+/************************************************************************/
 
 static menu_t *stack[MENU_STACK_DEPTH];
-static uint8_t selected_stack[MENU_STACK_DEPTH];  // which item is highlighted, per menu level
+static uint8_t selected_stack[MENU_STACK_DEPTH]; // which item is highlighted, per menu level
 static uint8_t depth;
 static nav_event_t last_event = NAV_NEUTRAL;
 static pending_action_t pending = PENDING_NONE; // is a LEFT/RIGHT action armed
-static uint8_t blink_ticks = 0; // counts loop passes between blink toggles
-static uint8_t blink_visible = 1; // 1 = marker shown, 0 = marker hidden
-static uint8_t wait_for_neutral = 0;  // 1 = ignore stick until it returns to centre
+static uint8_t blink_ticks = 0;                 // counts loop passes between blink toggles
+static uint8_t blink_visible = 1;               // 1 = marker shown, 0 = marker hidden
+static uint8_t wait_for_neutral = 0;            // 1 = ignore stick until it returns to centre
 void menu_init(menu_t *root){
 	depth = 0;
 	stack[0] = root;
@@ -290,9 +310,9 @@ void menu_update(nav_event_t event, io_buttons_t buttons){
 	uint8_t *selected = &selected_stack[depth];
 	if (pending != PENDING_NONE) {
 		if (sr6_pressed) {
-		// Cancel: forget the armed action and restore the normal screen.
-		// The stick is probably still held sideways, so wait for it to
-		// be centred before accepting new input
+			// Cancel: forget the armed action and restore the normal screen.
+			// The stick is probably still held sideways, so wait for it to
+			// be centred before accepting new input
 			pending = PENDING_NONE;
 			wait_for_neutral = 1;
 			menu_draw(current, *selected);
@@ -338,10 +358,10 @@ void menu_update(nav_event_t event, io_buttons_t buttons){
 	}
 		
 	/*
-	* After SR6 cancellation, ignore every joystick direction until the
-	* stick reaches neutral. This prevents the held direction from arming
-	* the same action again on the next loop iteration.
-	*/ 
+	 * After SR6 cancellation, ignore every joystick direction until the
+	 * stick reaches neutral. This prevents the held direction from arming
+	 * the same action again on the next loop iteration.
+	 */ 
 	if (wait_for_neutral) {
 		if (event == NAV_NEUTRAL) {
 			wait_for_neutral = 0;
@@ -390,11 +410,13 @@ void menu_update(nav_event_t event, io_buttons_t buttons){
 	}
 }
 
-/*
-* menu_redraw(): draw the menu we are currently in again.
-* Used when a game ends and the screen has to go back to the menu.
-*/
 void menu_redraw(void)
 {
 	menu_draw(stack[depth], selected_stack[depth]);
 }
+/************************************************************************/
+/*
+ * menu_redraw(): draw the menu we are currently in again.
+ * Used when a game ends and the screen has to go back to the menu.
+ */
+/************************************************************************/

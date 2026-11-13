@@ -3,8 +3,13 @@
 #include <stdint.h>
 #include "audio_protocol.h"
 extern uint8_t audio_ui;
-/* Retained until next event, so a busy CAN TX retries in later snapshots. */
 static inline void audio_event(uint8_t event) {
- audio_ui = ((audio_ui + 64u) & 0xc0u) | (event << 3);
+    audio_ui = ((audio_ui + AUD_SEQUENCE_STEP) & AUD_SEQUENCE_MASK) |
+               (event << AUD_EFFECT_SHIFT);
 }
+/************************************************************************/
+/*
+ * Retained until next event, so a busy CAN TX retries in later snapshots.
+ */
+/************************************************************************/
 #endif

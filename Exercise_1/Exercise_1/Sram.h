@@ -13,4 +13,4 @@ void SRAM_test(void);
 void SRAM_single_test(void);
 
 
-#endif //SRAM_H_
+#endif // SRAM_H_

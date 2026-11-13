@@ -37,17 +37,17 @@ void timer_init(void)
     
     PMC->PMC_PCER0 = (1u << ID_TC0);
  
-   // Stop the counter while configuring it 
-   // TC_CCR = 0x2 = CLKDIS (disable clock)
-   // TC_CCR = 0x4 = SWTRG (reset counter to 0)
-   // TC_CCR = 0x1 = CLKEN (enable clock)
+    // Stop the counter while configuring it
+    // TC_CCR = 0x2 = CLKDIS (disable clock)
+    // TC_CCR = 0x4 = SWTRG (reset counter to 0)
+    // TC_CCR = 0x1 = CLKEN (enable clock)
     TC0->TC_CHANNEL[0].TC_CCR = TC_CCR_CLKDIS;
  
-    /*  Mode:
+    /*
+     * Mode:
      *      TIMER_CLOCK1 -> counts at MCK/2 = 42 MHz
      *      WAVE         -> waveform mode
-     *      WAVSEL_UP_RC -> count 0, 1, 2 ... RC, then back to 0  
-     *    
+     *      WAVSEL_UP_RC -> count 0, 1, 2 ... RC, then back to 0
      */
     // TC_CMR = Timer Counter Mode Register (page 883)
     // TC_CMR = 0x00000050 = 0b00000000 00000000 00000000 01010000
@@ -58,44 +58,54 @@ void timer_init(void)
     
     TC0->TC_CHANNEL[0].TC_CMR = TC_CMR_TCCLKS_TIMER_CLOCK1| TC_CMR_WAVE | TC_CMR_WAVSEL_UP_RC;
  
-    // Count to 42 000 -> one period = 1 ms 
-    // TC_IER = 0x10 = bit 4 = CPCS 
+    // Count to 42 000 -> one period = 1 ms
+    // TC_IER = 0x10 = bit 4 = CPCS
     
     TC0->TC_CHANNEL[0].TC_RC = 42000;
  
-    // Interrupt when the counter reaches RC 
+    // Interrupt when the counter reaches RC
     // TC_IER = Timer Counter Interrupt Enable Register (page 894)
     // TC_IER = 0x4 = bit 2 = CPCS (RC compare)
     
     TC0->TC_CHANNEL[0].TC_IER = TC_IER_CPCS;
  
-    //. Allow the TC0 interrupt in the NVIC 
-    // NVIC = Nested Vector Interrupt Controller 
+    // . Allow the TC0 interrupt in the NVIC
+    // NVIC = Nested Vector Interrupt Controller
     
     NVIC_EnableIRQ(TC0_IRQn);
  
-    // Start: enable the clock and reset the counter to 0 
+    // Start: enable the clock and reset the counter to 0
     TC0->TC_CHANNEL[0].TC_CCR = TC_CCR_CLKEN | TC_CCR_SWTRG;
 }
  
-// Return the number of milliseconds since the timer was initialized.
 uint32_t timer_millis(void){
     return millis;
 }
+/************************************************************************/
+/*
+ * Return the number of milliseconds since the timer was initialized.
+ */
+/************************************************************************/
  
-/* This runs automatically every 1 ms */
 void TC0_Handler(void)
 {
-    /* Reading the status register clears the interrupt flag.
-     * If we did not read it, the interrupt would fire again immediately. */
+    /*
+     * Reading the status register clears the interrupt flag.
+     * If we did not read it, the interrupt would fire again immediately.
+     */
     uint32_t status = TC0->TC_CHANNEL[0].TC_SR;
-    // If the interrupt was caused by RC compare, increment the millisecond counter and call ir_update() to read and filter the IR sensor. 
+    // If the interrupt was caused by RC compare, increment the millisecond counter and call ir_update() to read and filter the IR sensor.
     // TC_SR = Timer Counter Status Register (page 892)
     if (status & TC_SR_CPCS) {
 		millis++;
 		Solenoid_update(millis);
 		if ((millis % CONTROL_PERIOD_MS) == 0u){PIControl_tick(millis);}
-		IR_update();          /* read and filter the IR sensor */
+		IR_update(); // read and filter the IR sensor
     }
 }
+/************************************************************************/
+/*
+ * This runs automatically every 1 ms
+ */
+/************************************************************************/
 

@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 
-#define ADC_IR_CHANNEL   7      /* A0 = AD7 */
+#define ADC_IR_CHANNEL   7 // A0 = AD7
 
 /* Set up the ADC to convert channel 7 continuously (free-run mode) */
 void adc_init(void);
@@ -23,4 +23,4 @@ void adc_init(void);
 /* Newest result for a channel: 0 .. 4095  (0 V .. 3.3 V) */
 uint16_t adc_read(uint8_t channel);
 
-#endif // ADC_H_ 
+#endif // ADC_H_

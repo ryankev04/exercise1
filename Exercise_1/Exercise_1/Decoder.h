@@ -10,4 +10,4 @@
 
 void decoder_test(void);
 
-#endif //DECODER_H_
+#endif // DECODER_H_

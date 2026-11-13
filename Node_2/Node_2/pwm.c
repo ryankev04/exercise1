@@ -23,50 +23,60 @@
 // Joystick X from Node 1 (raw byte from the User-I/O board).
 
 #define JOY_MIN      0
-#define JOY_CENTER   126      /* same as NAV_CENTER in Node 1's Menu.c */
+#define JOY_CENTER   126 // same as NAV_CENTER in Node 1's Menu.c
 #define JOY_MAX      255
  
 static uint32_t current_cdty = SERVO_CDTY_CENTER;
  
-/* ------------------------------------------------------------------ */
-/* Step 1: set up the PWM                                             */
-/* ------------------------------------------------------------------ */
 void servo_init(void)
 {
-    /*  Turn on the clock to the PWM peripheral.
-     *    PWM has ID 36. IDs 32..63 go in PCER1, so the bit is 36 - 32 = 4. */
+    /*
+     * Turn on the clock to the PWM peripheral.
+     *    PWM has ID 36. IDs 32..63 go in PCER1, so the bit is 36 - 32 = 4.
+     */
     PMC->PMC_PCER1 = (1u << (ID_PWM - 32));
  
-    //  Turn channel 1 off while we configure it, and wait until it is off. 
+    //  Turn channel 1 off while we configure it, and wait until it is off.
     PWM->PWM_DIS = PWM_DIS_CHID1;
     while (PWM->PWM_SR & PWM_SR_CHID1) { }
  
-    /* Channel mode:
+    /*
+     * Channel mode:
      *      CPRE = MCK/32  -> 84 MHz / 32 = 2 625 000 counts per second
      *      CPOL = 1       -> output starts HIGH, so CDTY = high time
-     *      CALG = 0       -> left aligned (default, so not written)      */
+     *      CALG = 0       -> left aligned (default, so not written)
+     */
     PWM->PWM_CH_NUM[1].PWM_CMR = PWM_CMR_CPRE_MCK_DIV_32 | PWM_CMR_CPOL;
  
-    // Period: 52 500 counts = 20 ms 
+    // Period: 52 500 counts = 20 ms
     PWM->PWM_CH_NUM[1].PWM_CPRD = SERVO_CPRD;
  
-    //  First pulse: 3937 counts = 1.5 ms = centre 
+    //  First pulse: 3937 counts = 1.5 ms = centre
     PWM->PWM_CH_NUM[1].PWM_CDTY = SERVO_CDTY_CENTER;
     current_cdty = SERVO_CDTY_CENTER;
  
-    /*  Connect pin PB13 to the PWM (done last, so the servo only ever
+    /*
+     * Connect pin PB13 to the PWM (done last, so the servo only ever
      *    sees a fully configured signal).
      *      PIO_ABSR bit = 1 -> peripheral B (PWMH1 is on peripheral B)
-     *      PIO_PDR        -> take the pin away from normal GPIO           */
+     *      PIO_PDR        -> take the pin away from normal GPIO
+     */
     PIOB->PIO_ABSR |= PIO_PB13;
     PIOB->PIO_PDR   = PIO_PB13;
 	servo_enable(0);
 }
+/************************************************************************/
+/*
+ * Step 1: set up the PWM
+ */
+/************************************************************************/
 
 void servo_enable(uint8_t enabled)
 {
     if (enabled) {
-        /* Return PB13 to the PWM peripheral. */
+        /*
+         * Return PB13 to the PWM peripheral.
+         */
         PIOB->PIO_ABSR |= PIO_PB13;
         PIOB->PIO_PDR = PIO_PB13;
 
@@ -85,38 +95,47 @@ void servo_enable(uint8_t enabled)
     }
 }
 
-// Step 2: change the pulse, with safety limits                       
 
 void servo_set_cdty(uint32_t cdty)
 {
-    // Safety: never outside 0.9 ms .. 2.1 ms 
+    // Safety: never outside 0.9 ms .. 2.1 ms
     if (cdty < SERVO_CDTY_MIN) cdty = SERVO_CDTY_MIN;
     if (cdty > SERVO_CDTY_MAX) cdty = SERVO_CDTY_MAX;
  
     current_cdty = cdty;
  
-    /* Write the UPDATE register, not PWM_CDTY. The new value is used from
+    /*
+     * Write the UPDATE register, not PWM_CDTY. The new value is used from
      * the start of the next period, so a pulse is never cut short
-     * (datasheet 38.6.5.3, page 997). */
+     * (datasheet 38.6.5.3, page 997).
+     */
     PWM->PWM_CH_NUM[1].PWM_CDTYUPD = cdty;
 }
+/************************************************************************/
+/*
+ * Step 2: change the pulse, with safety limits
+ */
+/************************************************************************/
  
  #define JOY_DEADBAND  8
 
 
-// Step 3: joystick X (0..255) -> CDTY (2363..5512) 
 
 void servo_set_from_joystick(uint8_t x)
 {
-	/* ---- Low-pass filter ---------------------------------------- */
-	static int16_t x_filtered = JOY_CENTER;          // (1)
+	/*
+	 * ---- Low-pass filter ----------------------------------------
+	 */
+	static int16_t x_filtered = JOY_CENTER; // (1)
 
-	x_filtered = x_filtered + ((int16_t)x - x_filtered) / 4;   // (2)
+	x_filtered = x_filtered + ((int16_t)x - x_filtered) / 4; // (2)
 
-	/* ---- Dead band around the centre ---------------------------- */
-	int16_t x_use = x_filtered;                      // (3)
+	/*
+	 * ---- Dead band around the centre ----------------------------
+	 */
+	int16_t x_use = x_filtered; // (3)
 	if (x_use > JOY_CENTER - JOY_DEADBAND &&
-	x_use < JOY_CENTER + JOY_DEADBAND) {         // (4)
+	x_use < JOY_CENTER + JOY_DEADBAND) { // (4)
 		x_use = JOY_CENTER;
 	}
 
@@ -124,20 +143,29 @@ void servo_set_from_joystick(uint8_t x)
 	
 	
     if (x  >= JOY_CENTER) {
-        /* Right half: x = 126 .. 255  ->  cdty = 3937 .. 5512
+        /*
+         * Right half: x = 126 .. 255  ->  cdty = 3937 .. 5512
          * Straight line through (126, 3937) and (255, 5512):
          *   cdty = 3937 + (x - 126) * (5512 - 3937) / (255 - 126)
-         *        = 3937 + (x - 126) * 1575 / 129                     */
+         *        = 3937 + (x - 126) * 1575 / 129
+         */
         cdty = SERVO_CDTY_CENTER  + ((int32_t)x_use  - JOY_CENTER) * (SERVO_CDTY_MAX - SERVO_CDTY_CENTER)/ (JOY_MAX - JOY_CENTER);
     } else {
-        /* Left half: x = 0 .. 126  ->  cdty = 2363 .. 3937
+        /*
+         * Left half: x = 0 .. 126  ->  cdty = 2363 .. 3937
          *   cdty = 3937 - (126 - x) * (3937 - 2363) / (126 - 0)
-         *        = 3937 - (126 - x) * 1574 / 126                     */
+         *        = 3937 - (126 - x) * 1574 / 126
+         */
         cdty = SERVO_CDTY_CENTER - (JOY_CENTER - (int32_t)x_use) * (SERVO_CDTY_CENTER - SERVO_CDTY_MIN)  / (JOY_CENTER - JOY_MIN);
     }
  
-    servo_set_cdty((uint32_t)cdty);   /* limits are applied in here */
+    servo_set_cdty((uint32_t)cdty); // limits are applied in here
 }
+/************************************************************************/
+/*
+ * Step 3: joystick X (0..255) -> CDTY (2363..5512)
+ */
+/************************************************************************/
  
 uint32_t servo_get_cdty(void)
 {

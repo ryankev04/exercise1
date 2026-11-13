@@ -19,7 +19,7 @@
  * lane, bit 0 = top pixel) and _bot (page 2 of the lane).
  * ---------------------------------------------------------------------------
  */
-#include "usart.h"    // F_CPU (needed by util/delay.h)
+#include "usart.h" // F_CPU (needed by util/delay.h)
 #include "car.h"
 #include "oled.h"
 #include "hof.h"
@@ -40,32 +40,31 @@ static const uint8_t spr_coin_top[10] PROGMEM = { 0x00, 0xC0, 0x20, 0xD0, 0x28, 
 static const uint8_t spr_coin_bot[10] PROGMEM = { 0x00, 0x00, 0x01, 0x02, 0x05, 0x05, 0x02, 0x01, 0x00, 0x00 };
 
 #define LANES        3
-#define PLAYER_X     4      // player car is always at the left side
-#define MAX_OBJ      6      // max cars/trucks/coins on the road at the same time
-#define SPEED_START  2      // pixels per frame
+#define PLAYER_X     4 // player car is always at the left side
+#define MAX_OBJ      6 // max cars/trucks/coins on the road at the same time
+#define SPEED_START  2 // pixels per frame
 #define SPEED_MAX    6
-#define SPEED_STEP   1500   // +1 speed every 1500 points
-#define BOOST        2      // extra speed while SR5 is held
+#define SPEED_STEP   1500 // +1 speed every 1500 points
+#define BOOST        2    // extra speed while SR5 is held
 
 enum { OBJ_NONE, OBJ_CAR, OBJ_TRUCK, OBJ_COIN };
 
 typedef struct {
-	int16_t x;      // left edge in pixels (can be negative while leaving the screen)
-	uint8_t lane;   // 0..2
-	uint8_t type;   // OBJ_...
+	int16_t x;    // left edge in pixels (can be negative while leaving the screen)
+	uint8_t lane; // 0..2
+	uint8_t type; // OBJ_...
 } obj_t;
 
 static obj_t    obj[MAX_OBJ];
 static uint8_t  player_lane;
 static uint16_t score;
 static uint8_t  speed;
-static int16_t  spawn_timer;   // pixels until the next car is added
-static uint8_t  dash_offset;   // moves the dashed lane lines -> looks like driving
+static int16_t  spawn_timer; // pixels until the next car is added
+static uint8_t  dash_offset; // moves the dashed lane lines -> looks like driving
 static uint8_t  frame;
-static uint16_t best;          // best score from the High Scores (EEPROM)
-static uint16_t rng;           // random number state
+static uint16_t best; // best score from the High Scores (EEPROM)
+static uint16_t rng;  // random number state
 
-/* xorshift16: a tiny random number generator (never returns 0 if rng != 0) */
 static uint16_t rnd(void)
 {
 	rng ^= rng << 7;
@@ -73,6 +72,11 @@ static uint16_t rnd(void)
 	rng ^= rng << 8;
 	return rng;
 }
+/************************************************************************/
+/*
+ * xorshift16: a tiny random number generator (never returns 0 if rng != 0)
+ */
+/************************************************************************/
 
 static uint8_t obj_width(uint8_t type)
 {
@@ -81,7 +85,6 @@ static uint8_t obj_width(uint8_t type)
 	return 16;
 }
 
-/* One byte (8 vertical pixels) of a sprite. bottom = 0: top page, 1: bottom page */
 static uint8_t sprite_byte(uint8_t type, uint8_t col, uint8_t bottom)
 {
 	const uint8_t *top;
@@ -100,7 +103,7 @@ static uint8_t sprite_byte(uint8_t type, uint8_t col, uint8_t bottom)
 		top = spr_coin_top;
 		bot = spr_coin_bot;
 	}
-	else {                                   // OBJ_NONE is used for the player car
+	else { // OBJ_NONE is used for the player car
 		top = spr_player_top;
 		bot = spr_player_bot;
 	}
@@ -110,12 +113,12 @@ static uint8_t sprite_byte(uint8_t type, uint8_t col, uint8_t bottom)
 	}
 	return pgm_read_byte(&top[col]);
 }
-
+/************************************************************************/
 /*
- * Draw one page (half a lane) over the full width.
- * For every column: start with the road markings, then OR in every sprite
- * that covers this column. The bytes are sent in one SPI burst.
+ * One byte (8 vertical pixels) of a sprite. bottom = 0: top page, 1: bottom page
  */
+/************************************************************************/
+
 static void draw_lane_half(uint8_t lane, uint8_t bottom)
 {
 	// Make a short list of the objects in this lane first (faster loop below)
@@ -152,8 +155,14 @@ static void draw_lane_half(uint8_t lane, uint8_t bottom)
 	}
 	oled_data_end();
 }
+/************************************************************************/
+/*
+ * Draw one page (half a lane) over the full width.
+ * For every column: start with the road markings, then OR in every sprite
+ * that covers this column. The bytes are sent in one SPI burst.
+ */
+/************************************************************************/
 
-/* Top row: "Score  1234 Hi  5678" (numbers right-aligned, 5 wide) */
 static void draw_hud(void)
 {
 	oled_pos(0, 0);
@@ -163,6 +172,11 @@ static void draw_hud(void)
 	oled_print_number(best, 5);
 	oled_clear_rest();
 }
+/************************************************************************/
+/*
+ * Top row: "Score  1234 Hi  5678" (numbers right-aligned, 5 wide)
+ */
+/************************************************************************/
 
 static void draw_speed_bar(void)
 {
@@ -191,20 +205,19 @@ void car_start(uint16_t seed)
 	frame = 0;
 	rng = seed;
 	if (rng == 0) {
-		rng = 0xACE1;                // the generator must never start at 0
+		rng = 0xACE1; // the generator must never start at 0
 	}
 	best = hof_best(HOF_TURBO);
 	car_redraw();
 }
 
-/* Add a new car / truck / coin at the right edge of the screen */
 static void spawn(void)
 {
 	uint8_t slot = MAX_OBJ;
 	for (uint8_t i = 0; i < MAX_OBJ; i++) {
 		if (obj[i].type == OBJ_NONE) { slot = i; break; }
 	}
-	if (slot == MAX_OBJ) return;                // road is full
+	if (slot == MAX_OBJ) return; // road is full
 
 	uint8_t lane = rnd() % LANES;
 	// 1 in 10 a coin, 2 in 10 a truck, the rest normal cars
@@ -225,7 +238,7 @@ static void spawn(void)
 	uint8_t blocked = 0;
 	for (uint8_t i = 0; i < MAX_OBJ; i++) {
 		if (obj[i].type == OBJ_NONE) continue;
-		if (obj[i].lane == lane && obj[i].x > 128 - 32) return;  // too close in the same lane
+		if (obj[i].lane == lane && obj[i].x > 128 - 32) return; // too close in the same lane
 		if (obj[i].type != OBJ_COIN && obj[i].lane != lane && obj[i].x > 128 - 56) {
 			blocked |= (1 << obj[i].lane);
 		}
@@ -238,6 +251,11 @@ static void spawn(void)
 	obj[slot].lane = lane;
 	obj[slot].type = type;
 }
+/************************************************************************/
+/*
+ * Add a new car / truck / coin at the right edge of the screen
+ */
+/************************************************************************/
 
 uint8_t car_update(int8_t lane_move, uint8_t boost)
 {
@@ -247,7 +265,7 @@ uint8_t car_update(int8_t lane_move, uint8_t boost)
 	if (lane_move < 0 && player_lane > 0)         player_lane--;
 	if (lane_move > 0 && player_lane < LANES - 1) player_lane++;
 
-	uint8_t v = speed;              // pixels everything moves this frame
+	uint8_t v = speed; // pixels everything moves this frame
 	if (boost) {
 		v = v + BOOST;
 	}
@@ -258,7 +276,7 @@ uint8_t car_update(int8_t lane_move, uint8_t boost)
 		if (o->type == OBJ_NONE) continue;
 
 		o->x -= v;
-		if (o->x < -24) {                        // left the screen
+		if (o->x < -24) { // left the screen
 			o->type = OBJ_NONE;
 			continue;
 		}
@@ -268,7 +286,7 @@ uint8_t car_update(int8_t lane_move, uint8_t boost)
 		    o->x + 2 < PLAYER_X + 16 - 2 &&
 		    o->x + obj_width(o->type) - 2 > PLAYER_X + 2) {
 			if (o->type == OBJ_COIN) {
-				score += 50;                     // coin = bonus
+				score += 50; // coin = bonus
 				o->type = OBJ_NONE;
 			}
 			else {

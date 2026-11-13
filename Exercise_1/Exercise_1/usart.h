@@ -9,7 +9,11 @@
 
 #ifndef USART_H_
 #define USART_H_
-//========================================== INCLUDES
+/************************************************************************/
+/*
+ * ========================================== INCLUDES
+ */
+/************************************************************************/
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -17,7 +21,11 @@
 #include <stdio.h> 
 
 
-//========================================== DEFINES
+/************************************************************************/
+/*
+ * ========================================== DEFINES
+ */
+/************************************************************************/
 /*
 * F_CPU: CPU / oscillator frequency used in this calculation. Our board uses a 4.9152 MHz crystal.
 * UBRR_VAL: The resulting value from the UBRR formula by a baud rate and CPU frequency.
@@ -30,12 +38,16 @@
 #define F_CPU  4915200UL
 #define BAUD     9600UL
 #define SRAM_START 0x1400
-#define SRAM_SIZE  0xC00      // 3072 bytes = 3 KiB
+#define SRAM_SIZE  0xC00 // 3072 bytes = 3 KiB
 #define UBRR_VAL ((F_CPU/(16UL*BAUD)) - 1)
 #define RX_BUFFER_SIZE 32
 
 
-//========================================== Functions
+/************************************************************************/
+/*
+ * ========================================== Functions
+ */
+/************************************************************************/
 
 void uart1_init(void);
 void uart1_send(uint8_t data);
@@ -47,10 +59,14 @@ char    uart1_receive(void);
 int uart_putchar(char c, FILE *stream);
 int uart_getchar(FILE *stream);
 
-//========== variables
+/************************************************************************/
+/*
+ * ========== variables
+ */
+/************************************************************************/
 
 extern volatile uint8_t rx_data[RX_BUFFER_SIZE];
 extern volatile uint8_t rx_head;
 extern volatile uint8_t rx_tail;
 
-#endif //USART_H_
+#endif // USART_H_

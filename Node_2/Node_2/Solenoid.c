@@ -20,8 +20,7 @@ static volatile uint8_t solenoid_active = 0;
 void Solenoid_init(void){
 	PMC->PMC_PCER0 = (1u << ID_PIOC);
 
-	// PNP transistor: HIGH = OFF
-	PIOC->PIO_SODR = SOLENOID_PIN;
+	PIOC->PIO_SODR = SOLENOID_PIN; // PNP transistor: HIGH = OFF
 
 	// Enable GPIO control and configure as output
 	PIOC->PIO_PER = SOLENOID_PIN;
@@ -29,8 +28,7 @@ void Solenoid_init(void){
 }
 
 void Solenoid_stop(void){
-	/* HIGH = OFF in your existing circuit. */
-	PIOC->PIO_SODR = SOLENOID_PIN;
+	PIOC->PIO_SODR = SOLENOID_PIN; // HIGH = OFF in your existing circuit.
 	solenoid_active = 0;
 }
 
@@ -40,15 +38,14 @@ void Solenoid_run(uint32_t now_ms){
 	pulse_start_ms = now_ms;
 	solenoid_active = 1;
 
-	// LOW = transistor ON, relay activated
-	PIOC->PIO_CODR = SOLENOID_PIN;
+	PIOC->PIO_CODR = SOLENOID_PIN; // LOW = transistor ON, relay activated
+    audio_effect(FX_HIT); // queue SFX only after an accepted physical command
 }
 
 
 void Solenoid_update(uint32_t now_ms){
 	if (solenoid_active && (uint32_t)(now_ms - pulse_start_ms) >= SOLENOID_PULSE_MS){
-		// HIGH = transistor OFF
-		PIOC->PIO_SODR = SOLENOID_PIN;
+		PIOC->PIO_SODR = SOLENOID_PIN; // HIGH = transistor OFF
 		solenoid_active = 0;
 	}
 }
